@@ -14,6 +14,8 @@ from app.models.schemas import (
     AuditEventType,
     AuditReportOut,
     AuditTrailQuery,
+    CapitalAdequacyRequest,
+    CapitalAdequacyResult,
     FRY14QReportOut,
     IFRS13ReportOut,
     Pillar3ReportOut,
@@ -24,10 +26,12 @@ from app.models.schemas import (
     ReportType,
 )
 from app.services.audit_trail import AuditTrail, log_event
+from app.services.capital_adequacy import CapitalAdequacyService
 from app.services.fry14q import FRY14QReporter
 from app.services.ifrs13 import IFRS13Reporter
 from app.services.pillar3 import Pillar3Reporter
 from app.services.pra110 import PRA110Reporter
+from app.services.pva_level3 import PVALevel3Reporter
 
 router = APIRouter(prefix="/reports", tags=["regulatory-reports"])
 audit_router = APIRouter(prefix="/audit", tags=["audit-trail"])
@@ -242,6 +246,43 @@ async def get_pra110_xml(
 
 
 # ── FR Y-14Q Endpoints ────────────────────────────────────────────
+# ── PVA Level 3 Summary Endpoints ─────────────────────────────
+@router.post("/pva-level3")
+async def generate_pva_level3(
+    reporting_date: date,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Generate PVA Level 3 Summary report.
+
+    Generates quarterly Pillar 3 disclosure for Level 3 positions,
+    as required by CRR Article 105 / EBA Guidelines.
+
+    Includes:
+    - Table 1: Level 3 Fair Value Positions by Product Type
+    - Table 2: AVA Components for Level 3 Positions
+    - Table 3: Level 3 AVA Quarterly Reconciliation
+    """
+    reporter = PVALevel3Reporter(db)
+    report = await reporter.generate_pva_level3_report(reporting_date)
+
+    # Log audit event
+    await log_event(
+        db,
+        AuditEventType.REPORT_GENERATED,
+        user=request.headers.get("X-User-ID", "system"),
+        details={
+            "report_type": "PVA_LEVEL3",
+            "report_id": report.get("report_id"),
+            "reporting_date": str(reporting_date),
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+
+    return report
+
+
+# ── FR Y-14Q Endpoints ────────────────────────────────────────
 @router.post("/fry14q", response_model=FRY14QReportOut)
 async def generate_fry14q(
     reporting_date: date,
@@ -323,6 +364,78 @@ async def get_fry14q_csv(
             "Content-Disposition": f"attachment; filename=FRY14Q_{report.reporting_date}.csv"
         },
     )
+
+
+# ── Capital Adequacy Endpoints ───────────────────────────────────
+@router.post("/capital-adequacy", response_model=CapitalAdequacyResult)
+async def generate_capital_adequacy(
+    req: CapitalAdequacyRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> CapitalAdequacyResult:
+    """Generate capital adequacy report matching Excel Capital_Adequacy sheet.
+
+    Calculates:
+      - CET1 Capital from equity components and deductions (including AVA)
+      - RWA across credit risk, market risk, and operational risk
+      - Capital ratios (CET1, leverage) vs regulatory minimums
+      - Pass/fail assessment against Basel III requirements
+
+    Excel example with defaults:
+      CET1 = $70,465,575
+      Total RWA = $297,860,000
+      CET1 Ratio = 23.7%
+      Min required: 4.5% -> PASS
+    """
+    service = CapitalAdequacyService(db)
+    result = await service.calculate_capital_adequacy(req)
+
+    # Log audit event
+    await log_event(
+        db,
+        AuditEventType.CAPITAL_ADEQUACY_CALCULATED,
+        user=request.headers.get("X-User-ID", "system"),
+        details={
+            "report_type": "CAPITAL_ADEQUACY",
+            "report_id": result.report_id,
+            "reporting_date": str(req.reporting_date),
+            "total_cet1": float(result.total_cet1),
+            "total_rwa": float(result.total_rwa),
+            "cet1_ratio_pct": float(result.cet1_ratio_pct),
+            "passes_minimum": result.capital_ratios.passes_minimum,
+            "passes_with_buffers": result.capital_ratios.passes_with_ccyb,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+
+    await db.commit()
+    return result
+
+
+@router.get("/capital-adequacy/latest", response_model=CapitalAdequacyResult)
+async def get_latest_capital_adequacy(
+    reporting_date: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+) -> CapitalAdequacyResult:
+    """Get the latest capital adequacy report.
+
+    If reporting_date is provided, returns the report for that specific date.
+    Otherwise returns the most recent report available.
+    """
+    service = CapitalAdequacyService(db)
+    result = await service.get_latest_report(reporting_date)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No capital adequacy report found"
+                + (f" for {reporting_date}" if reporting_date else "")
+                + ". Generate one first using POST /reports/capital-adequacy."
+            ),
+        )
+
+    return result
 
 
 # ── Audit Trail Endpoints ─────────────────────────────────────────

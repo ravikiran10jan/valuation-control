@@ -59,6 +59,7 @@ from app.api.positions import router as positions_router  # noqa: E402
 from app.api.alerts import router as alerts_router  # noqa: E402
 from app.api.reserves import router as reserves_router  # noqa: E402
 from app.api.valuations import router as valuations_router  # noqa: E402
+from app.api.routes import router as ipv_lifecycle_router  # noqa: E402
 
 app.include_router(dashboard_router)
 app.include_router(exceptions_router)
@@ -66,6 +67,7 @@ app.include_router(positions_router)
 app.include_router(alerts_router)
 app.include_router(reserves_router)
 app.include_router(valuations_router)
+app.include_router(ipv_lifecycle_router)
 
 # Serve the built frontend from dist/ in production
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "..", "dist")

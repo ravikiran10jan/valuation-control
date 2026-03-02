@@ -39,10 +39,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Agent 6: Regulatory Reporting & Compliance",
     description=(
-        "Generates regulatory reports (Pillar 3, IFRS 13, PRA110, FR Y-14Q) "
+        "Generates regulatory reports (Pillar 3, IFRS 13, PRA110, FR Y-14Q, Capital Adequacy) "
         "and maintains audit trails for SOX compliance."
     ),
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -66,7 +66,7 @@ async def health_check() -> dict:
     return {
         "status": "healthy",
         "service": "agent6-regulatory-reporting",
-        "version": "1.0.0",
+        "version": "1.1.0",
     }
 
 
@@ -82,6 +82,8 @@ async def root() -> dict:
                 "ifrs13": "POST /reports/ifrs13",
                 "pra110": "POST /reports/pra110",
                 "fry14q": "POST /reports/fry14q",
+                "capital_adequacy": "POST /reports/capital-adequacy",
+                "capital_adequacy_latest": "GET /reports/capital-adequacy/latest",
             },
             "audit": {
                 "trail": "GET /audit/trail",

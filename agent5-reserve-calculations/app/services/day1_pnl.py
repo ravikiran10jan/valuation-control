@@ -3,6 +3,8 @@
 Rules:
   - Level 1 / Level 2: recognise immediately (all inputs observable)
   - Level 3: defer and amortise over the life of the instrument
+
+Enhanced with red flag detection from the Excel Day1_PnL_RedFlags sheet.
 """
 
 from __future__ import annotations
@@ -19,9 +21,11 @@ from app.models.postgres import AmortizationSchedule, Day1PnL as Day1PnLRow, Res
 from app.models.schemas import (
     AmortizationEntry,
     Day1PnLResult,
+    Day1PnLWithRedFlags,
     Day1PnLWithSchedule,
     PositionInput,
 )
+from app.services.red_flag_detector import detect_red_flags
 
 log = structlog.get_logger()
 
@@ -97,6 +101,129 @@ async def calculate_day1_pnl(
         deferred_amount=deferred_amount,
         trade_date=position.trade_date,
         amortization_schedule=schedule,
+    )
+
+
+async def calculate_day1_pnl_with_red_flags(
+    db: AsyncSession,
+    position: PositionInput,
+    recent_trade_count: int | None = None,
+    average_trade_count: int | None = None,
+    remark_count: int | None = None,
+    remark_period_days: int = 30,
+) -> Day1PnLWithRedFlags:
+    """Compute Day 1 P&L with full red flag analysis.
+
+    This enhanced version runs all 6 red flag checks from the Excel model:
+      Red Flag 1: Client overpaid >20% (SEVERE)
+      Red Flag 2: No observable market (Level 3)
+      Red Flag 3: Bank has information advantage
+      Red Flag 4: Earnings manipulation risk
+      Red Flag 5: Volume spike at period end
+      Red Flag 6: Frequent re-marks
+
+    Returns Day1PnLWithRedFlags which includes the standard Day 1 P&L result
+    plus the red flag report.
+    """
+    transaction_price = position.transaction_price or Decimal(0)
+    fair_value = position.vc_fair_value or Decimal(0)
+
+    day1_pnl = transaction_price - fair_value
+
+    if position.classification == "Level3":
+        recognition_status = "DEFERRED"
+        recognized_amount = Decimal(0)
+        deferred_amount = day1_pnl
+    else:
+        recognition_status = "RECOGNIZED"
+        recognized_amount = day1_pnl
+        deferred_amount = Decimal(0)
+
+    # Run red flag detection
+    red_flag_report = detect_red_flags(
+        position=position,
+        transaction_price=transaction_price,
+        fair_value=fair_value,
+        recent_trade_count=recent_trade_count,
+        average_trade_count=average_trade_count,
+        remark_count=remark_count,
+        remark_period_days=remark_period_days,
+    )
+
+    # If SEVERE flags triggered on a non-Level3 position, override to DEFERRED
+    if red_flag_report.requires_escalation and recognition_status == "RECOGNIZED":
+        log.warning(
+            "day1_pnl_deferred_by_red_flag",
+            position_id=position.position_id,
+            original_status="RECOGNIZED",
+            reason="SEVERE red flag triggered — Day 1 P&L deferred pending investigation",
+        )
+        recognition_status = "DEFERRED"
+        recognized_amount = Decimal(0)
+        deferred_amount = day1_pnl
+
+    # Persist Day1PnL row
+    pnl_row = Day1PnLRow(
+        position_id=position.position_id,
+        transaction_price=transaction_price,
+        fair_value=fair_value,
+        day1_pnl=day1_pnl,
+        recognition_status=recognition_status,
+        recognized_amount=recognized_amount,
+        deferred_amount=deferred_amount,
+        trade_date=position.trade_date,
+    )
+    db.add(pnl_row)
+
+    # Persist into unified reserves table with red flag metadata
+    reserve = Reserve(
+        position_id=position.position_id,
+        reserve_type="Day1_PnL",
+        amount=deferred_amount,
+        calculation_date=date.today(),
+        rationale=(
+            f"Day1 P&L ${float(day1_pnl):,.0f} — {recognition_status}; "
+            f"Txn ${float(transaction_price):,.0f} vs FV ${float(fair_value):,.0f}; "
+            f"Red flags: {red_flag_report.total_flags_triggered} triggered"
+            f"{' (ESCALATION REQUIRED)' if red_flag_report.requires_escalation else ''}"
+        ),
+        components={
+            "red_flags_triggered": red_flag_report.total_flags_triggered,
+            "max_severity": red_flag_report.max_severity.value if red_flag_report.max_severity else None,
+            "requires_escalation": red_flag_report.requires_escalation,
+        },
+    )
+    db.add(reserve)
+
+    # Build amortization schedule for deferred amounts
+    schedule: list[AmortizationEntry] = []
+    if recognition_status == "DEFERRED" and deferred_amount != 0:
+        schedule = await _create_amortization_schedule(
+            db, position.position_id, deferred_amount, position.trade_date, position.maturity_date
+        )
+
+    await db.flush()
+
+    log.info(
+        "day1_pnl_with_red_flags_calculated",
+        position_id=position.position_id,
+        day1_pnl=float(day1_pnl),
+        status=recognition_status,
+        red_flags_triggered=red_flag_report.total_flags_triggered,
+        requires_escalation=red_flag_report.requires_escalation,
+    )
+
+    return Day1PnLWithRedFlags(
+        position_id=position.position_id,
+        transaction_price=transaction_price,
+        fair_value=fair_value,
+        day1_pnl=day1_pnl,
+        recognition_status=recognition_status,
+        recognized_amount=recognized_amount,
+        deferred_amount=deferred_amount,
+        trade_date=position.trade_date,
+        amortization_schedule=schedule,
+        red_flag_report=red_flag_report,
     )
 
 

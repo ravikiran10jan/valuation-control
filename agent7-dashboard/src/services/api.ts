@@ -37,6 +37,13 @@ import type {
   PositionReserveRequest,
   ReserveSummaryResult,
   FVAByAssetClass,
+  IPVRun,
+  IPVLatestResult,
+  ReserveWaterfallData,
+  CapitalAdequacy,
+  FVHierarchySummary,
+  ValidationReport,
+  PositionDeepDiveData,
 } from '@/types';
 
 const API_BASE = '/api';
@@ -366,4 +373,45 @@ export const api = {
     const query = reserveType ? `?reserve_type=${reserveType}` : '';
     return fetchJson<Array<{ reserve_id: number; position_id: number; reserve_type: string; amount: number; calculation_date: string; rationale: string | null; components: Record<string, unknown> | null; created_at: string }>>(`/reserves/by-position/${positionId}${query}`);
   },
+
+  // ── IPV Lifecycle ────────────────────────────────────────────────
+  getIPVRuns: (params?: { limit?: number; status?: string }) => {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== '')
+      ) as Record<string, string>
+    ).toString();
+    return fetchJson<IPVRun[]>(`/ipv/runs${query ? `?${query}` : ''}`);
+  },
+
+  getIPVLatest: () => fetchJson<IPVLatestResult>('/ipv/latest'),
+
+  triggerIPVRun: (assetClass?: string, runDate?: string) => {
+    const params = new URLSearchParams();
+    if (assetClass) params.set('asset_class', assetClass);
+    if (runDate) params.set('run_date', runDate);
+    const query = params.toString();
+    return fetchJson<{ run_id: string }>(`/ipv/trigger${query ? `?${query}` : ''}`, {
+      method: 'POST',
+    });
+  },
+
+  getIPVPositionDetail: (positionId: number) =>
+    fetchJson<PositionDeepDiveData>(`/ipv/positions/${positionId}/detail`),
+
+  // ── Reserves Detail ──────────────────────────────────────────────
+  getReservesDetail: () => fetchJson<ReserveWaterfallData>('/reserves/detail'),
+
+  // ── Capital Adequacy ─────────────────────────────────────────────
+  getCapitalAdequacy: () => fetchJson<CapitalAdequacy>('/capital-adequacy'),
+
+  // ── Greeks ───────────────────────────────────────────────────────
+  getGreeks: (positionId: number) =>
+    fetchJson<{ position_id: number; greeks: Array<{ name: string; value: number; unit: string }>; error?: string }>(`/greeks/${positionId}`),
+
+  // ── Validation ───────────────────────────────────────────────────
+  getValidationReport: () => fetchJson<ValidationReport>('/validation/report'),
+
+  // ── FV Hierarchy ─────────────────────────────────────────────────
+  getFVHierarchy: () => fetchJson<FVHierarchySummary[]>('/fv-hierarchy'),
 };

@@ -25,7 +25,7 @@ from app.core.database import Base
 
 class AuditEvent(Base):
     """Immutable audit trail for SOX compliance.
-    
+
     Stores all valuation-related events for regulatory audit.
     """
     __tablename__ = "audit_events"
@@ -69,7 +69,7 @@ class RegulatoryReport(Base):
     report_type: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        comment="Report type: PILLAR3, IFRS13, PRA110, FRY14Q, ECB",
+        comment="Report type: PILLAR3, IFRS13, PRA110, FRY14Q, ECB, CAPITAL_ADEQUACY",
     )
     reporting_date: Mapped[date] = mapped_column(Date, nullable=False)
     firm_reference: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -187,3 +187,61 @@ class CET1Capital(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class CapitalAdequacyReport(Base):
+    """Stores capital adequacy reports with full RWA and ratio calculations.
+
+    Matches the Excel Capital_Adequacy sheet with:
+      - CET1 components (equity, retained earnings, deductions)
+      - RWA by risk type (credit, market, operational)
+      - Capital ratios (CET1, leverage) vs regulatory minimums
+    """
+    __tablename__ = "capital_adequacy_reports"
+    __table_args__ = (
+        Index("ix_capital_adequacy_date", "reporting_date"),
+        Index("ix_capital_adequacy_status", "status"),
+        {"schema": "regulatory"},
+    )
+
+    report_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    reporting_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="DRAFT",
+    )
+
+    # CET1 Capital Components
+    shareholders_equity: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    retained_earnings: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    aoci: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    goodwill_intangibles: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    deferred_tax_assets: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    ava_deduction: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    other_regulatory_deductions: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    total_cet1: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+
+    # RWA Components
+    credit_risk_rwa: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    market_risk_rwa: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    operational_risk_rwa: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+    total_rwa: Mapped[float] = mapped_column(Numeric(20, 2), nullable=False)
+
+    # Capital Ratios
+    cet1_ratio: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
+    leverage_ratio: Mapped[Optional[float]] = mapped_column(Numeric(10, 6), nullable=True)
+
+    # Full breakdown stored as JSON for audit trail
+    full_breakdown: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    approved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    approved_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

@@ -9,6 +9,11 @@ import {
   Menu,
   Building2,
   AlertTriangle,
+  Activity,
+  DollarSign,
+  Landmark,
+  Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -17,16 +22,36 @@ import { AlertPanel } from '../alerts/AlertPanel';
 
 const navigation = [
   { name: 'Executive Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'IPV Runs', href: '/ipv', icon: Activity },
   { name: 'Analyst Workbench', href: '/workbench', icon: ListChecks },
   { name: 'Exceptions', href: '/exceptions', icon: AlertTriangle },
+  { name: 'Reserves', href: '/reserves', icon: DollarSign },
+  { name: 'Capital Adequacy', href: '/capital', icon: Landmark },
+  { name: 'FV Hierarchy', href: '/hierarchy', icon: Layers },
+  { name: 'Validation', href: '/validation', icon: ShieldCheck },
   { name: 'Reports', href: '/reports', icon: FileText },
 ];
+
+const pageNames: Record<string, string> = {
+  '/': 'Executive Dashboard',
+  '/ipv': 'IPV Run Dashboard',
+  '/workbench': 'Analyst Workbench',
+  '/exceptions': 'Exceptions',
+  '/reserves': 'Reserve Waterfall',
+  '/capital': 'Capital Adequacy',
+  '/hierarchy': 'Fair Value Hierarchy',
+  '/validation': 'Validation Dashboard',
+  '/reports': 'Reports',
+};
 
 export function Layout() {
   const location = useLocation();
   const { unreadCount } = useAlerts();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [alertsOpen, setAlertsOpen] = useState(false);
+
+  const currentPageName = pageNames[location.pathname] ||
+    (location.pathname.startsWith('/positions/') ? 'Position Detail' : 'Valuation Control');
 
   return (
     <div className="flex h-screen bg-enterprise-50 text-enterprise-800">
@@ -58,7 +83,7 @@ export function Layout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -98,8 +123,7 @@ export function Layout() {
         {/* Header */}
         <header className="flex h-16 items-center justify-between px-6 border-b border-enterprise-200 bg-white shadow-enterprise-sm">
           <h1 className="text-xl font-semibold text-enterprise-800">
-            {navigation.find((n) => n.href === location.pathname)?.name ||
-              (location.pathname.startsWith('/positions/') ? 'Position Detail' : 'Valuation Control')}
+            {currentPageName}
           </h1>
 
           <div className="flex items-center gap-3">

@@ -1,0 +1,223 @@
+version: "3.9"
+
+services:
+  # ── Infrastructure ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: valuation_control
+      POSTGRES_USER: vc_user
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vc_user -d valuation_control"]
+      interval: 5s
+      retries: 5
+    networks:
+      - vc-network
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - vc-network
+
+  # ── Agent 1: Data Layer (port 8000) ─────────────────────────────
+  agent1-data-layer:
+    build: ./agent1-data-layer
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=valuation_control
+      - POSTGRES_USER=vc_user
+      - POSTGRES_PASSWORD=changeme
+      - MONGO_URI=mongodb://mongo:27017
+      - APP_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 2: Pricing Engine (port 8002) ─────────────────────────
+  agent2-pricing-engine:
+    build: ./agent2-pricing-engine
+    ports:
+      - "8002:8002"
+    environment:
+      - AGENT1_BASE_URL=http://agent1-data-layer:8000
+      - APP_ENV=production
+    depends_on:
+      - agent1-data-layer
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 3: IPV Orchestrator (port 8003) ───────────────────────
+  agent3-ipv-orchestrator:
+    build: ./agent3-ipv-orchestrator
+    ports:
+      - "8003:8003"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=valuation_control
+      - POSTGRES_USER=vc_user
+      - POSTGRES_PASSWORD=changeme
+      - AGENT1_BASE_URL=http://agent1-data-layer:8000
+      - AGENT2_BASE_URL=http://agent2-pricing-engine:8002
+      - AGENT4_BASE_URL=http://agent4-dispute-workflow:8004
+      - AGENT5_BASE_URL=http://agent5-reserve-calculations:8005
+      - AGENT6_BASE_URL=http://agent6-regulatory-reporting:8006
+      - APP_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent1-data-layer:
+        condition: service_started
+      agent2-pricing-engine:
+        condition: service_started
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 4: Dispute Workflow (port 8004) ───────────────────────
+  agent4-dispute-workflow:
+    build: ./agent4-dispute-workflow
+    ports:
+      - "8004:8004"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=valuation_control
+      - POSTGRES_USER=vc_user
+      - POSTGRES_PASSWORD=changeme
+      - APP_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 5: Reserve Calculations (port 8005) ──────────────────
+  agent5-reserve-calculations:
+    build: ./agent5-reserve-calculations
+    ports:
+      - "8005:8005"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=valuation_control
+      - POSTGRES_USER=vc_user
+      - POSTGRES_PASSWORD=changeme
+      - AGENT1_BASE_URL=http://agent1-data-layer:8000
+      - AGENT2_BASE_URL=http://agent2-pricing-engine:8002
+      - APP_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent1-data-layer:
+        condition: service_started
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 6: Regulatory Reporting (port 8006) ──────────────────
+  agent6-regulatory-reporting:
+    build: ./agent6-regulatory-reporting
+    ports:
+      - "8006:8006"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=valuation_control
+      - POSTGRES_USER=vc_user
+      - POSTGRES_PASSWORD=changeme
+      - AGENT1_BASE_URL=http://agent1-data-layer:8000
+      - AGENT5_BASE_URL=http://agent5-reserve-calculations:8005
+      - APP_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent5-reserve-calculations:
+        condition: service_started
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 7: Dashboard Backend (port 8007) ─────────────────────
+  agent7-dashboard-backend:
+    build:
+      context: ./agent7-dashboard
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8007:8007"
+    environment:
+      - AGENT1_BASE_URL=http://agent1-data-layer:8000
+      - AGENT2_BASE_URL=http://agent2-pricing-engine:8002
+      - AGENT3_BASE_URL=http://agent3-ipv-orchestrator:8003
+      - AGENT4_BASE_URL=http://agent4-dispute-workflow:8004
+      - AGENT5_BASE_URL=http://agent5-reserve-calculations:8005
+      - AGENT6_BASE_URL=http://agent6-regulatory-reporting:8006
+      - APP_ENV=production
+    depends_on:
+      - agent1-data-layer
+      - agent3-ipv-orchestrator
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 7: Dashboard Frontend (port 5173) ────────────────────
+  agent7-dashboard-frontend:
+    build:
+      context: ./agent7-dashboard
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - agent7-dashboard-backend
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+  # ── Agent 8: Validation Agent (port 8008) ──────────────────────
+  agent8-validation:
+    build: ./agent8-validation
+    ports:
+      - "8008:8008"
+    environment:
+      - AGENT1_BASE_URL=http://agent1-data-layer:8000
+      - AGENT2_BASE_URL=http://agent2-pricing-engine:8002
+      - AGENT3_BASE_URL=http://agent3-ipv-orchestrator:8003
+      - AGENT4_BASE_URL=http://agent4-dispute-workflow:8004
+      - AGENT5_BASE_URL=http://agent5-reserve-calculations:8005
+      - AGENT6_BASE_URL=http://agent6-regulatory-reporting:8006
+      - AGENT7_BASE_URL=http://agent7-dashboard-backend:8007
+      - APP_ENV=production
+    depends_on:
+      - agent1-data-layer
+      - agent2-pricing-engine
+      - agent5-reserve-calculations
+    networks:
+      - vc-network
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  mongo_data:
+
+networks:
+  vc-network:
+    driver: bridge

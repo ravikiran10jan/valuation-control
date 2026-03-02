@@ -43,6 +43,7 @@ from app.api.exceptions import (  # noqa: E402
     escalation_router,
     committee_router,
 )
+from app.api.seed_routes import router as seed_router  # noqa: E402
 
 app.include_router(market_data_router)
 app.include_router(positions_router)
@@ -52,6 +53,7 @@ app.include_router(exceptions_router)
 app.include_router(comparison_router)
 app.include_router(escalation_router)
 app.include_router(committee_router)
+app.include_router(seed_router)
 
 
 @app.get("/health")

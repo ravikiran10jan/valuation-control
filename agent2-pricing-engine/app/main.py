@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from app.api.routes import router as pricing_router
+from app.api.routes import greeks_router, router as pricing_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -19,6 +19,7 @@ app = FastAPI(
 )
 
 app.include_router(pricing_router)
+app.include_router(greeks_router)
 
 
 @app.get("/health")

@@ -622,3 +622,155 @@ export interface DisputeApprovalDecision {
   approver: string;
   decision: 'APPROVED' | 'REJECTED';
 }
+
+// ── IPV Run Types ─────────────────────────────────────────────────
+
+export interface IPVRun {
+  run_id: string;
+  run_date: string;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED';
+  total_positions: number;
+  completed_steps: number;
+  total_steps: number;
+  step_results: IPVStepResult[];
+  summary: IPVSummary;
+}
+
+export interface IPVStepResult {
+  step_number: number;
+  step_name: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  started_at?: string;
+  completed_at?: string;
+  results_count?: number;
+  errors_count?: number;
+}
+
+export interface IPVSummary {
+  total_notional_usd: number;
+  total_book_value_usd: number;
+  green_count: number;
+  amber_count: number;
+  red_count: number;
+  total_fva: number;
+  total_ava: number;
+  total_model_reserve: number;
+  total_day1_deferred: number;
+}
+
+export interface IPVLatestResult {
+  total_positions: number;
+  total_notional_usd: number;
+  total_book_value_usd: number;
+  green_count: number;
+  amber_count: number;
+  red_count: number;
+  total_fva: number;
+  total_ava: number;
+  total_model_reserve: number;
+  total_day1_deferred: number;
+  ipv_runs: IPVRun[];
+  exception_summary: ExceptionSummary;
+}
+
+// ── Reserve Waterfall ─────────────────────────────────────────────
+
+export interface ReserveWaterfallPosition {
+  position_id: number;
+  currency_pair: string;
+  asset_class: string;
+  notional_usd: number;
+  fva: number;
+  ava: number;
+  model_reserve: number;
+  day1_deferred: number;
+  total_reserve: number;
+}
+
+export interface ReserveWaterfallData {
+  positions: ReserveWaterfallPosition[];
+  totals: {
+    total_fva: number;
+    total_ava: number;
+    total_model_reserve: number;
+    total_day1_deferred: number;
+    grand_total: number;
+  };
+}
+
+// ── Capital Adequacy ──────────────────────────────────────────────
+
+export interface CapitalAdequacy {
+  cet1_capital: number;
+  total_rwa: number;
+  cet1_ratio: number;
+  regulatory_minimum: number;
+  buffer_above_minimum: number;
+  ava_deduction: number;
+  components: {
+    shareholders_equity: number;
+    retained_earnings: number;
+    aoci: number;
+    deductions: number;
+  };
+  rwa_breakdown: {
+    credit_risk: number;
+    market_risk: number;
+    operational_risk: number;
+  };
+}
+
+// ── FV Hierarchy ──────────────────────────────────────────────────
+
+export interface FVHierarchySummary {
+  level: 'L1' | 'L2' | 'L3';
+  position_count: number;
+  book_value: number;
+  pct_of_total: number;
+  characteristics: string;
+  disclosure_level: string;
+  audit_intensity: string;
+}
+
+// ── Validation ────────────────────────────────────────────────────
+
+export interface ValidationReport {
+  overall_score: number;
+  total_checks: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+  categories: ValidationCategory[];
+}
+
+export interface ValidationCategory {
+  name: string;
+  score: number;
+  checks: ValidationCheck[];
+}
+
+export interface ValidationCheck {
+  name: string;
+  status: 'PASS' | 'FAIL' | 'WARN';
+  expected: string;
+  actual: string;
+  tolerance: string;
+}
+
+// ── Position Deep Dive ────────────────────────────────────────────
+
+export interface PositionDeepDiveData extends Position {
+  reserves: {
+    fva: number;
+    ava: number;
+    model_reserve: number;
+    day_1_pnl: number;
+  };
+  comparison_history: ValuationComparison[];
+  greeks: {
+    position_id?: number;
+    greeks?: Greek[];
+    error?: string;
+  };
+  disputes: Dispute[];
+}

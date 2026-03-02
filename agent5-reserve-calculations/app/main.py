@@ -39,12 +39,14 @@ from app.api.ava import router as ava_router  # noqa: E402
 from app.api.model_reserve import router as model_reserve_router  # noqa: E402
 from app.api.day1_pnl import router as day1_pnl_router  # noqa: E402
 from app.api.reserves import router as reserves_router  # noqa: E402
+from app.api.red_flags import router as red_flags_router  # noqa: E402
 
 app.include_router(fva_router)
 app.include_router(ava_router)
 app.include_router(model_reserve_router)
 app.include_router(day1_pnl_router)
 app.include_router(reserves_router)
+app.include_router(red_flags_router)
 
 
 @app.get("/health")
