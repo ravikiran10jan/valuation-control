@@ -6,14 +6,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.logging import setup_logging
-from app.models.mongo import ensure_indexes
+from app.core.logging import setup_logging, log
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    await ensure_indexes()
+    # Try to ensure MongoDB indexes, but don't fail if unavailable
+    try:
+        from app.models.mongo import ensure_indexes
+        await ensure_indexes()
+    except Exception as e:
+        log.warning("mongodb_unavailable", error=str(e), message="Starting without MongoDB - some features may be limited")
     yield
 
 
