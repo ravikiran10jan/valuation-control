@@ -93,6 +93,7 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
   credit: 'bg-orange-100 text-orange-700 border-orange-200',
   fx: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   commodity: 'bg-amber-100 text-amber-700 border-amber-200',
+  income: 'bg-teal-100 text-teal-700 border-teal-200',
 };
 
 // ── Component ───────────────────────────────────────────────

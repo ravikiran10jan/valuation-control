@@ -95,7 +95,8 @@ async def compare(req: SimulatorCompareRequest) -> SimulatorCompareResponse:
             raise HTTPException(status_code=404, detail=str(e))
 
         try:
-            result = model.calculate(req.parameters)
+            merged = model.params_with_defaults(req.parameters)
+            result = model.calculate(merged)
         except Exception as e:
             raise HTTPException(
                 status_code=422,

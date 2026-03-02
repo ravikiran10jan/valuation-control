@@ -209,6 +209,11 @@ const ASSET_CLASS_CONFIG: Record<
     color: 'text-amber-700',
     bg: 'bg-amber-50 border-amber-200',
   },
+  income: {
+    label: 'Income',
+    color: 'text-teal-700',
+    bg: 'bg-teal-50 border-teal-200',
+  },
 };
 
 // ── Main component ──────────────────────────────────────────
@@ -241,6 +246,21 @@ export function SimulatorPage() {
     'formula' | 'applicability' | 'steps' | 'results' | 'sensitivity'
   >('formula');
   const [productsLoading, setProductsLoading] = useState(true);
+  const [compareMetas, setCompareMetas] = useState<Record<string, ModelMetadata>>({});
+
+  // Merged parameter specs for compare mode (union of all selected models)
+  const mergedCompareParams: ParameterSpec[] = (() => {
+    if (!compareMode || compareModelIds.size === 0) return [];
+    const seen = new Map<string, ParameterSpec>();
+    for (const mid of compareModelIds) {
+      const meta = compareMetas[mid];
+      if (!meta) continue;
+      for (const p of meta.parameters) {
+        if (!seen.has(p.name)) seen.set(p.name, p);
+      }
+    }
+    return Array.from(seen.values());
+  })();
 
   // Load products
   useEffect(() => {
@@ -272,6 +292,32 @@ export function SimulatorPage() {
       })
       .catch((e) => setError(e.message));
   }, [selectedModelId]);
+
+  // Fetch metadata for all compare-selected models and merge defaults into params
+  useEffect(() => {
+    if (!compareMode || compareModelIds.size === 0) return;
+    let cancelled = false;
+    const mids = [...compareModelIds];
+    Promise.all(mids.map((mid) => fetchModelMeta(mid)))
+      .then((metas) => {
+        if (cancelled) return;
+        const newCompareMetas: Record<string, ModelMetadata> = {};
+        const mergedDefaults: Record<string, unknown> = {};
+        for (let i = 0; i < mids.length; i++) {
+          newCompareMetas[mids[i]] = metas[i];
+          for (const p of metas[i].parameters) {
+            if (!(p.name in mergedDefaults)) {
+              mergedDefaults[p.name] = p.default;
+            }
+          }
+        }
+        setCompareMetas(newCompareMetas);
+        // Merge defaults for any params not already set by the user
+        setParams((prev) => ({ ...mergedDefaults, ...prev }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [compareMode, compareModelIds]);
 
   const handleSampleChange = useCallback(
     (sampleName: string) => {
@@ -630,7 +676,10 @@ export function SimulatorPage() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {modelMeta.parameters.map((p) => (
+                {(compareMode && mergedCompareParams.length > 0
+                  ? mergedCompareParams
+                  : modelMeta.parameters
+                ).map((p) => (
                   <ParameterInput
                     key={p.name}
                     spec={p}

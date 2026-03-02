@@ -175,28 +175,41 @@ APPLICABILITY: list[dict[str, Any]] = [
 
 
 def get_applicability_matrix() -> list[dict[str, Any]]:
-    """Return the full applicability matrix with live model availability."""
+    """Return the full applicability matrix with live model availability.
+
+    Returns each entry with ``applicable_models`` as an array (not a dict) so
+    the frontend can iterate directly.
+    """
     available = set(m["model_id"] for m in ModelRegistry.list_all())
     matrix = []
     for entry in APPLICABILITY:
-        row = {**entry}
-        # Annotate which models are actually registered
-        annotated_models = {}
+        applicable_models = []
         for mid, info in entry["models"].items():
-            annotated_models[mid] = {
-                **info,
-                "available": mid in available,
+            applicable_models.append({
+                "model_id": mid,
                 "model_name": ModelRegistry.get_model(mid).model_name if mid in available else mid,
-            }
-        row["models"] = annotated_models
-        matrix.append(row)
+                "rating": info["rating"],
+                "notes": info["notes"],
+                "available": mid in available,
+            })
+        matrix.append({
+            "product": entry["product"],
+            "asset_class": entry["asset_class"],
+            "applicable_models": applicable_models,
+            "key_differentiator": entry.get("key_differentiator", ""),
+        })
     return matrix
 
 
 def get_product_recommendations(product_hint: str) -> list[dict[str, Any]]:
-    """Given a product description, return matching applicability entries."""
+    """Given a product description, return matching model recommendations.
+
+    Returns a flat list of per-model entries so the frontend can render them
+    directly without further transformation.
+    """
+    available = set(m["model_id"] for m in ModelRegistry.list_all())
     hint_lower = product_hint.lower()
-    matches = []
+    scored: list[tuple[int, dict[str, Any], str, dict[str, Any]]] = []
     for entry in APPLICABILITY:
         score = 0
         product_lower = entry["product"].lower()
@@ -206,6 +219,17 @@ def get_product_recommendations(product_hint: str) -> list[dict[str, Any]]:
         if entry["asset_class"].lower() in hint_lower:
             score += 1
         if score > 0:
-            matches.append({**entry, "_score": score})
-    matches.sort(key=lambda x: x["_score"], reverse=True)
-    return matches
+            for mid, info in entry["models"].items():
+                scored.append((score, entry, mid, info))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [
+        {
+            "model_id": mid,
+            "model_name": ModelRegistry.get_model(mid).model_name if mid in available else mid,
+            "rating": info["rating"],
+            "notes": info["notes"],
+            "product": entry["product"],
+            "asset_class": entry["asset_class"],
+        }
+        for _, entry, mid, info in scored
+    ]

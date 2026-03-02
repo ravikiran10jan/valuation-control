@@ -100,6 +100,12 @@ class BaseSimulatorModel(abc.ABC):
     def calculate(self, params: dict[str, Any]) -> SimulatorResult:
         """Run the full pricing calculation with step-by-step trace."""
 
+    def params_with_defaults(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Return *params* merged with this model's defaults for any missing keys."""
+        merged = {p.name: p.default for p in self.get_parameters()}
+        merged.update(params)
+        return merged
+
     def get_metadata(self) -> dict[str, Any]:
         """Return full model metadata for the API."""
         return {

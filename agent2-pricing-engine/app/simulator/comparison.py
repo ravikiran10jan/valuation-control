@@ -58,7 +58,7 @@ def run_sensitivity(
 
         for mid, model in models.items():
             try:
-                res = model.calculate(p)
+                res = model.calculate(model.params_with_defaults(p))
                 results[mid]["prices"].append(round(res.fair_value, 4))
                 results[mid]["deltas"].append(round(res.greeks.get("delta", 0), 6))
                 results[mid]["gammas"].append(round(res.greeks.get("gamma", 0), 6))
@@ -99,7 +99,7 @@ def compute_model_reserve(
     for mid in model_ids:
         try:
             model = ModelRegistry.get_model(mid)
-            res = model.calculate(base_params)
+            res = model.calculate(model.params_with_defaults(base_params))
             results[mid] = {
                 "model_name": model.model_name,
                 "fair_value": res.fair_value,
