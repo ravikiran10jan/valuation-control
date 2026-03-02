@@ -11,6 +11,7 @@ import { ReserveWaterfall } from './components/reserves/ReserveWaterfall';
 import { CapitalAdequacyView } from './components/capital/CapitalAdequacyView';
 import { FVHierarchyView } from './components/hierarchy/FVHierarchyView';
 import { ValidationDashboard } from './components/validation/ValidationDashboard';
+import { SimulatorPage } from './components/simulator/SimulatorPage';
 import { AlertsProvider } from './hooks/useAlerts';
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="capital" element={<CapitalAdequacyView />} />
           <Route path="hierarchy" element={<FVHierarchyView />} />
           <Route path="validation" element={<ValidationDashboard />} />
+          <Route path="simulator" element={<SimulatorPage />} />
         </Route>
       </Routes>
     </AlertsProvider>

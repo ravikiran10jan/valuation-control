@@ -12,6 +12,11 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      '/api/simulator': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/api/, ''),
+      },
       '/api/reserves': {
         target: 'http://localhost:8005',
         changeOrigin: true,

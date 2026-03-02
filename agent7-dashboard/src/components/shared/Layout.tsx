@@ -14,6 +14,7 @@ import {
   Landmark,
   Layers,
   ShieldCheck,
+  FlaskConical,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Capital Adequacy', href: '/capital', icon: Landmark },
   { name: 'FV Hierarchy', href: '/hierarchy', icon: Layers },
   { name: 'Validation', href: '/validation', icon: ShieldCheck },
+  { name: 'Pricing Simulator', href: '/simulator', icon: FlaskConical },
   { name: 'Reports', href: '/reports', icon: FileText },
 ];
 
@@ -41,6 +43,7 @@ const pageNames: Record<string, string> = {
   '/capital': 'Capital Adequacy',
   '/hierarchy': 'Fair Value Hierarchy',
   '/validation': 'Validation Dashboard',
+  '/simulator': 'Pricing Simulator',
   '/reports': 'Reports',
 };
 
