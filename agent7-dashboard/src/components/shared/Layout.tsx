@@ -157,10 +157,10 @@ export function Layout() {
             {/* User menu */}
             <button className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-enterprise-100 transition-colors">
               <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-sm font-semibold text-white shadow-sm">
-                JD
+                RK
               </div>
               <div className="text-left">
-                <p className="text-sm font-medium text-enterprise-800">John Doe</p>
+                <p className="text-sm font-medium text-enterprise-800">Ravikiran</p>
                 <p className="text-xs text-enterprise-500">Analyst</p>
               </div>
               <ChevronDown size={16} className="text-enterprise-400" />

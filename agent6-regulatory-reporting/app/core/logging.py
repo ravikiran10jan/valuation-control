@@ -1,11 +1,15 @@
 """Structured logging configuration."""
 
+import logging
 import structlog
 
 from app.core.config import settings
 
 
 def setup_logging() -> None:
+    # Map string log level to integer
+    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -15,9 +19,7 @@ def setup_logging() -> None:
             if settings.app_env == "development"
             else structlog.processors.JSONRenderer(),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            structlog.get_level_from_name(settings.log_level)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,
