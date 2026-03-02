@@ -15,6 +15,7 @@ import {
   Layers,
   ShieldCheck,
   FlaskConical,
+  Grid3X3,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -31,6 +32,7 @@ const navigation = [
   { name: 'FV Hierarchy', href: '/hierarchy', icon: Layers },
   { name: 'Validation', href: '/validation', icon: ShieldCheck },
   { name: 'Pricing Simulator', href: '/simulator', icon: FlaskConical },
+  { name: 'Model Applicability', href: '/applicability', icon: Grid3X3 },
   { name: 'Reports', href: '/reports', icon: FileText },
 ];
 
@@ -44,6 +46,7 @@ const pageNames: Record<string, string> = {
   '/hierarchy': 'Fair Value Hierarchy',
   '/validation': 'Validation Dashboard',
   '/simulator': 'Pricing Simulator',
+  '/applicability': 'Model Applicability Matrix',
   '/reports': 'Reports',
 };
 

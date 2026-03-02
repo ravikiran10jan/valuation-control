@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
+  Activity,
   ChevronRight,
   ChevronDown,
   Play,
@@ -18,9 +19,12 @@ import { cn } from '@/utils/format';
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
@@ -133,6 +137,47 @@ async function runComparison(
   return res.json();
 }
 
+interface SensitivityResult {
+  sweep_param: string;
+  sweep_values: number[];
+  models: Record<
+    string,
+    {
+      model_name: string;
+      prices: (number | null)[];
+      deltas: (number | null)[];
+    }
+  >;
+  model_reserve: number[];
+}
+
+async function runSensitivity(
+  modelIds: string[],
+  parameters: Record<string, unknown>,
+  sweepParam: string,
+  sweepMin: number,
+  sweepMax: number,
+  sweepSteps: number = 20,
+): Promise<SensitivityResult> {
+  const res = await fetch(`${API}/sensitivity`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model_ids: modelIds,
+      parameters,
+      sweep_param: sweepParam,
+      sweep_min: sweepMin,
+      sweep_max: sweepMax,
+      sweep_steps: sweepSteps,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Sensitivity failed');
+  }
+  return res.json();
+}
+
 // ── Asset class display ─────────────────────────────────────
 
 const ASSET_CLASS_CONFIG: Record<
@@ -190,8 +235,10 @@ export function SimulatorPage() {
     results: CalcResult[];
     comparison: Record<string, unknown>;
   } | null>(null);
+  const [sensitivityResult, setSensitivityResult] =
+    useState<SensitivityResult | null>(null);
   const [activeTab, setActiveTab] = useState<
-    'formula' | 'applicability' | 'steps' | 'results'
+    'formula' | 'applicability' | 'steps' | 'results' | 'sensitivity'
   >('formula');
   const [productsLoading, setProductsLoading] = useState(true);
 
@@ -495,6 +542,11 @@ export function SimulatorPage() {
                     label: 'Results',
                     icon: BarChart3,
                   },
+                  {
+                    id: 'sensitivity' as const,
+                    label: 'Sensitivity',
+                    icon: Activity,
+                  },
                 ] as const
               ).map((tab) => (
                 <button
@@ -531,6 +583,19 @@ export function SimulatorPage() {
               <ResultsTab
                 result={result}
                 compareResults={compareResults}
+              />
+            )}
+            {activeTab === 'sensitivity' && (
+              <SensitivityTab
+                selectedModelId={selectedModelId}
+                compareModelIds={compareModelIds}
+                params={params}
+                modelMeta={modelMeta}
+                sensitivityResult={sensitivityResult}
+                setSensitivityResult={setSensitivityResult}
+                loading={loading}
+                setLoading={(v: boolean) => setLoading(v)}
+                setError={(e: string | null) => setError(e)}
               />
             )}
 
@@ -1091,6 +1156,305 @@ function ResultsTab({
               {String(diag.verdict)}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sensitivity Tab ──────────────────────────────────────────
+
+const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+function SensitivityTab({
+  selectedModelId,
+  compareModelIds,
+  params,
+  modelMeta,
+  sensitivityResult,
+  setSensitivityResult,
+  loading,
+  setLoading,
+  setError,
+}: {
+  selectedModelId: string | null;
+  compareModelIds: Set<string>;
+  params: Record<string, unknown>;
+  modelMeta: ModelMetadata | null;
+  sensitivityResult: SensitivityResult | null;
+  setSensitivityResult: (r: SensitivityResult | null) => void;
+  loading: boolean;
+  setLoading: (v: boolean) => void;
+  setError: (e: string | null) => void;
+}) {
+  const [sweepParam, setSweepParam] = useState<string>('');
+  const [sweepMin, setSweepMin] = useState<number>(0);
+  const [sweepMax, setSweepMax] = useState<number>(1);
+  const [sweepSteps, setSweepSteps] = useState<number>(20);
+  const [showDelta, setShowDelta] = useState(false);
+
+  const numericParams = (modelMeta?.parameters ?? []).filter(
+    (p) => p.type === 'float' || p.type === 'int',
+  );
+
+  // Auto-set bounds when sweep param changes
+  useEffect(() => {
+    if (!sweepParam || !modelMeta) return;
+    const spec = modelMeta.parameters.find((p) => p.name === sweepParam);
+    if (!spec) return;
+    const current = Number(params[sweepParam] ?? spec.default);
+    const lo = spec.min_value ?? current * 0.5;
+    const hi = spec.max_value ?? current * 1.5;
+    setSweepMin(Number(lo.toFixed(4)));
+    setSweepMax(Number(hi.toFixed(4)));
+  }, [sweepParam, modelMeta, params]);
+
+  const modelIds = compareModelIds.size >= 2
+    ? [...compareModelIds]
+    : selectedModelId
+      ? [selectedModelId]
+      : [];
+
+  const handleRun = async () => {
+    if (!sweepParam || modelIds.length === 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await runSensitivity(
+        modelIds,
+        params,
+        sweepParam,
+        sweepMin,
+        sweepMax,
+        sweepSteps,
+      );
+      setSensitivityResult(res);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sensitivity failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Build chart data
+  const chartData = sensitivityResult
+    ? sensitivityResult.sweep_values.map((val, i) => {
+        const point: Record<string, unknown> = { x: val };
+        for (const [mid, mdata] of Object.entries(sensitivityResult.models)) {
+          if (showDelta) {
+            point[mid] = mdata.deltas[i];
+          } else {
+            point[mid] = mdata.prices[i];
+          }
+        }
+        if (!showDelta) {
+          point['model_reserve'] = sensitivityResult.model_reserve[i];
+        }
+        return point;
+      })
+    : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="bg-white rounded-xl border border-enterprise-200 shadow-enterprise-card p-5">
+        <h3 className="text-sm font-semibold text-enterprise-800 mb-3">
+          Parameter Sensitivity Sweep
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-enterprise-600 mb-1">
+              Sweep Parameter
+            </label>
+            <select
+              value={sweepParam}
+              onChange={(e) => setSweepParam(e.target.value)}
+              className="w-full border border-enterprise-200 rounded-lg px-2.5 py-1.5 text-sm bg-white"
+            >
+              <option value="">Select...</option>
+              {numericParams.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-enterprise-600 mb-1">
+              Min
+            </label>
+            <input
+              type="number"
+              value={sweepMin}
+              onChange={(e) => setSweepMin(Number(e.target.value))}
+              className="w-full border border-enterprise-200 rounded-lg px-2.5 py-1.5 text-sm font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-enterprise-600 mb-1">
+              Max
+            </label>
+            <input
+              type="number"
+              value={sweepMax}
+              onChange={(e) => setSweepMax(Number(e.target.value))}
+              className="w-full border border-enterprise-200 rounded-lg px-2.5 py-1.5 text-sm font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-enterprise-600 mb-1">
+              Steps
+            </label>
+            <input
+              type="number"
+              value={sweepSteps}
+              min={3}
+              max={100}
+              onChange={(e) => setSweepSteps(Number(e.target.value))}
+              className="w-full border border-enterprise-200 rounded-lg px-2.5 py-1.5 text-sm font-mono"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handleRun}
+              disabled={loading || !sweepParam || modelIds.length === 0}
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            >
+              <Activity size={14} />
+              {loading ? 'Running...' : 'Run Sweep'}
+            </button>
+          </div>
+        </div>
+        {modelIds.length === 0 && (
+          <p className="text-xs text-amber-600 mt-2">
+            Select a model or enable Compare mode and select 2+ models.
+          </p>
+        )}
+      </div>
+
+      {/* Chart */}
+      {sensitivityResult && chartData.length > 0 && (
+        <div className="bg-white rounded-xl border border-enterprise-200 shadow-enterprise-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-enterprise-800">
+              {showDelta ? 'Delta' : 'Price'} vs {sensitivityResult.sweep_param}
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDelta(false)}
+                className={cn(
+                  'px-3 py-1 rounded text-xs font-medium transition-colors',
+                  !showDelta
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-enterprise-100 text-enterprise-500 hover:bg-enterprise-200',
+                )}
+              >
+                Price
+              </button>
+              <button
+                onClick={() => setShowDelta(true)}
+                className={cn(
+                  'px-3 py-1 rounded text-xs font-medium transition-colors',
+                  showDelta
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-enterprise-100 text-enterprise-500 hover:bg-enterprise-200',
+                )}
+              >
+                Delta
+              </button>
+            </div>
+          </div>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="x"
+                  tick={{ fontSize: 10 }}
+                  label={{
+                    value: sensitivityResult.sweep_param,
+                    position: 'insideBottom',
+                    offset: -5,
+                    fontSize: 11,
+                  }}
+                />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip
+                  formatter={(value: number) =>
+                    typeof value === 'number' ? value.toFixed(4) : value
+                  }
+                />
+                <Legend />
+                {Object.entries(sensitivityResult.models).map(
+                  ([mid, mdata], i) => (
+                    <Line
+                      key={mid}
+                      type="monotone"
+                      dataKey={mid}
+                      name={mdata.model_name}
+                      stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  ),
+                )}
+                {!showDelta && Object.keys(sensitivityResult.models).length > 1 && (
+                  <Line
+                    type="monotone"
+                    dataKey="model_reserve"
+                    name="Model Reserve"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Summary stats */}
+      {sensitivityResult && Object.keys(sensitivityResult.models).length > 1 && (
+        <div className="bg-white rounded-xl border border-enterprise-200 shadow-enterprise-card p-5">
+          <h3 className="text-sm font-semibold text-enterprise-800 mb-3">
+            Model Reserve Summary
+          </h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+              <div className="text-xs text-amber-600 font-medium">
+                Max Reserve
+              </div>
+              <div className="text-lg font-bold text-amber-900 font-mono">
+                $
+                {Math.max(...sensitivityResult.model_reserve.filter((v) => v !== null)).toFixed(4)}
+              </div>
+            </div>
+            <div className="bg-enterprise-50 rounded-lg p-3 border border-enterprise-100">
+              <div className="text-xs text-enterprise-500 font-medium">
+                Avg Reserve
+              </div>
+              <div className="text-lg font-bold text-enterprise-800 font-mono">
+                $
+                {(
+                  sensitivityResult.model_reserve
+                    .filter((v) => v !== null)
+                    .reduce((a, b) => a + b, 0) /
+                  sensitivityResult.model_reserve.filter((v) => v !== null).length
+                ).toFixed(4)}
+              </div>
+            </div>
+            <div className="bg-enterprise-50 rounded-lg p-3 border border-enterprise-100">
+              <div className="text-xs text-enterprise-500 font-medium">
+                Min Reserve
+              </div>
+              <div className="text-lg font-bold text-enterprise-800 font-mono">
+                $
+                {Math.min(...sensitivityResult.model_reserve.filter((v) => v !== null)).toFixed(4)}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

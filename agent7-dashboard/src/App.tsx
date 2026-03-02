@@ -12,6 +12,7 @@ import { CapitalAdequacyView } from './components/capital/CapitalAdequacyView';
 import { FVHierarchyView } from './components/hierarchy/FVHierarchyView';
 import { ValidationDashboard } from './components/validation/ValidationDashboard';
 import { SimulatorPage } from './components/simulator/SimulatorPage';
+import { ApplicabilityPage } from './components/simulator/ApplicabilityPage';
 import { AlertsProvider } from './hooks/useAlerts';
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="hierarchy" element={<FVHierarchyView />} />
           <Route path="validation" element={<ValidationDashboard />} />
           <Route path="simulator" element={<SimulatorPage />} />
+          <Route path="applicability" element={<ApplicabilityPage />} />
         </Route>
       </Routes>
     </AlertsProvider>

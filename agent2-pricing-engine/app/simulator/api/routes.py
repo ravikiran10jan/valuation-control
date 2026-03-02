@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from pydantic import BaseModel, Field
+
 from app.simulator.registry import ModelRegistry
 from app.simulator.schemas import (
     SimulatorCalculateRequest,
@@ -13,6 +15,8 @@ from app.simulator.schemas import (
     SimulatorCompareRequest,
     SimulatorCompareResponse,
 )
+from app.simulator.comparison import run_sensitivity, compute_model_reserve
+from app.simulator.applicability import get_applicability_matrix, get_product_recommendations
 
 # Force model registration by importing the models package
 import app.simulator.models  # noqa: F401
@@ -144,3 +148,54 @@ async def compare(req: SimulatorCompareRequest) -> SimulatorCompareResponse:
         comparison["greeks"] = greek_comparison
 
     return SimulatorCompareResponse(results=results, comparison=comparison)
+
+
+# ── Phase 4: Sensitivity & Applicability ─────────────────────
+
+
+class SensitivityRequest(BaseModel):
+    model_ids: list[str] = Field(..., min_length=1, max_length=5)
+    parameters: dict[str, Any]
+    sweep_param: str
+    sweep_min: float
+    sweep_max: float
+    sweep_steps: int = Field(default=20, ge=3, le=100)
+
+
+@router.post("/sensitivity")
+async def sensitivity(req: SensitivityRequest) -> dict[str, Any]:
+    """Sweep one parameter across a range and price with each model."""
+    step_size = (req.sweep_max - req.sweep_min) / max(req.sweep_steps - 1, 1)
+    sweep_values = [
+        round(req.sweep_min + i * step_size, 6) for i in range(req.sweep_steps)
+    ]
+    try:
+        return run_sensitivity(req.model_ids, req.parameters, req.sweep_param, sweep_values)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Sensitivity failed: {e}")
+
+
+class ModelReserveRequest(BaseModel):
+    model_ids: list[str] = Field(..., min_length=2, max_length=10)
+    parameters: dict[str, Any]
+
+
+@router.post("/model-reserve")
+async def model_reserve(req: ModelReserveRequest) -> dict[str, Any]:
+    """Compute model reserve (price spread) across models at a single point."""
+    try:
+        return compute_model_reserve(req.model_ids, req.parameters)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Model reserve failed: {e}")
+
+
+@router.get("/applicability")
+async def applicability_matrix() -> list[dict[str, Any]]:
+    """Return the full product × model applicability matrix."""
+    return get_applicability_matrix()
+
+
+@router.get("/applicability/recommend")
+async def recommend_models(product: str) -> list[dict[str, Any]]:
+    """Given a product description, return matching model recommendations."""
+    return get_product_recommendations(product)
