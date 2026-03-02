@@ -5,3 +5,4 @@ from app.simulator.models import fx  # noqa: F401
 from app.simulator.models import rates  # noqa: F401
 from app.simulator.models import credit  # noqa: F401
 from app.simulator.models import commodity  # noqa: F401
+from app.simulator.models import income  # noqa: F401

@@ -104,6 +104,73 @@ APPLICABILITY: list[dict[str, Any]] = [
         },
         "key_differentiator": "Merton uses equity data, ISDA uses credit market data. They may diverge (basis).",
     },
+    # ── FX Products ──────────────────────────────────────────
+    {
+        "product": "European FX Vanilla Call/Put",
+        "asset_class": "fx",
+        "models": {
+            "garman_kohlhagen": {"rating": "preferred", "notes": "Industry standard FX BSM, analytical Greeks"},
+            "fx_variance_gamma": {"rating": "valid", "notes": "Captures EM FX jumps and fat tails (FFT)"},
+            "fx_local_vol": {"rating": "valid", "notes": "Smile-consistent pricing with 25Δ RR/BF inputs"},
+            "fx_pde_solver": {"rating": "valid", "notes": "Numerical validation, slower than GK"},
+        },
+        "key_differentiator": "GK is the standard. Use FX VG for EM pairs with jumps, Local Vol for smile-sensitive pricing.",
+    },
+    {
+        "product": "FX Barrier Option (Knock-In/Out)",
+        "asset_class": "fx",
+        "models": {
+            "fx_pde_solver": {"rating": "preferred", "notes": "PDE with Dirichlet boundary at barrier level"},
+            "fx_local_vol": {"rating": "preferred", "notes": "Smile-consistent barrier pricing (barrier sensitive to smile)"},
+            "garman_kohlhagen": {"rating": "limited", "notes": "Analytical barriers ignore smile — can misprice significantly"},
+        },
+        "key_differentiator": "FX barriers are highly smile-sensitive. Local vol PDE is the industry standard.",
+    },
+    {
+        "product": "American FX Option",
+        "asset_class": "fx",
+        "models": {
+            "fx_pde_solver": {"rating": "preferred", "notes": "Crank-Nicolson with early exercise constraint"},
+            "garman_kohlhagen": {"rating": "invalid", "notes": "European only — no early exercise"},
+        },
+        "key_differentiator": "Only PDE handles early exercise. American FX options common for corporate hedging.",
+    },
+    {
+        "product": "EM FX Options (with jump risk)",
+        "asset_class": "fx",
+        "models": {
+            "fx_variance_gamma": {"rating": "preferred", "notes": "Captures devaluation jumps, fat tails, asymmetry"},
+            "garman_kohlhagen": {"rating": "limited", "notes": "Underprices OTM puts in EM FX (no jumps)"},
+            "fx_local_vol": {"rating": "valid", "notes": "Fits smile but no explicit jump modelling"},
+        },
+        "key_differentiator": "EM FX (BRL, TRY, ZAR) has significant jump risk. VG captures this; GK does not.",
+    },
+    # ── Income Products ──────────────────────────────────────
+    {
+        "product": "Net Interest Income (IRRBB)",
+        "asset_class": "income",
+        "models": {
+            "nii_forecast": {"rating": "preferred", "notes": "Repricing gap analysis with rate shocks and pass-through"},
+        },
+        "key_differentiator": "Core ALM/Treasury tool for earnings-at-risk from rate movements.",
+    },
+    {
+        "product": "Non-Interest Income Forecast",
+        "asset_class": "income",
+        "models": {
+            "non_interest_income": {"rating": "preferred", "notes": "Scenario-based projection of fee, trading, and securities income"},
+        },
+        "key_differentiator": "Complements NII for total revenue forecasting under market stress scenarios.",
+    },
+    {
+        "product": "Total Bank Revenue Forecast",
+        "asset_class": "income",
+        "models": {
+            "nii_forecast": {"rating": "preferred", "notes": "NII component — interest rate sensitive"},
+            "non_interest_income": {"rating": "preferred", "notes": "Non-interest component — market sensitive"},
+        },
+        "key_differentiator": "Total revenue = NII + non-interest income. Both should be projected together for stress testing.",
+    },
 ]
 
 
