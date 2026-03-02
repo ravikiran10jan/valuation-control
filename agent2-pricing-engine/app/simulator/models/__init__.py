@@ -2,3 +2,4 @@
 
 from app.simulator.models import equity  # noqa: F401
 from app.simulator.models import rates  # noqa: F401
+from app.simulator.models import credit  # noqa: F401
