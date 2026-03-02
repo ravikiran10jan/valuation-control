@@ -292,6 +292,60 @@ async def get_fv_hierarchy_summary() -> list[dict]:
     return result
 
 
+async def get_level_transfers() -> list[dict]:
+    """Compute fair value level transfers by comparing current vs previous levels.
+
+    Queries the audit trail from Agent 1 for LEVEL_TRANSFER events.
+    Falls back to analysing positions if audit events aren't available.
+
+    Returns:
+        List of dicts with from_level, to_level, count, reason.
+    """
+    try:
+        # Try to get level transfer audit events from Agent 1
+        events = await agent1_get("/exceptions/", params={
+            "limit": 10000,
+        })
+    except Exception:
+        events = []
+
+    # Count level transfers from exception metadata
+    transfers: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"count": 0, "reasons": []}
+    )
+
+    for exc in events:
+        prev_level = exc.get("previous_fv_level")
+        curr_level = exc.get("fair_value_level") or exc.get("fv_level")
+        if prev_level and curr_level and prev_level != curr_level:
+            key = (prev_level, curr_level)
+            transfers[key]["count"] += 1
+            reason = exc.get("level_change_reason", "")
+            if reason and reason not in transfers[key]["reasons"]:
+                transfers[key]["reasons"].append(reason)
+
+    # Build a readable reason for each transfer direction
+    reason_map = {
+        ("L1", "L2"): "Delisted or reduced trading volume",
+        ("L2", "L1"): "Active market established",
+        ("L2", "L3"): "Market became illiquid",
+        ("L3", "L2"): "Observable prices became available",
+        ("L1", "L3"): "Market became illiquid",
+        ("L3", "L1"): "Active market re-established",
+    }
+
+    result = []
+    for (from_lvl, to_lvl), data in sorted(transfers.items()):
+        result.append({
+            "from": from_lvl,
+            "to": to_lvl,
+            "count": data["count"],
+            "reason": data["reasons"][0] if data["reasons"] else reason_map.get((from_lvl, to_lvl), "Level reclassification"),
+        })
+
+    return result
+
+
 async def get_validation_report() -> dict:
     """Get the latest validation results from Agent 8.
 

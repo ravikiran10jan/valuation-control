@@ -111,17 +111,25 @@ const fallbackReport: ValidationReport = {
   ],
 };
 
-// Historical trend data
-const trendData = Array.from({ length: 30 }, (_, i) => {
-  const d = new Date();
-  d.setDate(d.getDate() - (29 - i));
-  return {
-    date: d.toISOString().split('T')[0],
-    score: 90 + Math.random() * 8,
-    passed: 135 + Math.floor(Math.random() * 15),
-    failed: 5 + Math.floor(Math.random() * 8),
-  };
-});
+// Stable historical trend data derived from a simple deterministic seed
+// (no Math.random() to avoid changing on every render)
+function generateStableTrend(baseScore: number, basePassed: number, baseFailed: number): Array<{ date: string; score: number; passed: number; failed: number }> {
+  return Array.from({ length: 30 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (29 - i));
+    // Simple deterministic variance based on day index
+    const seed = (i * 7 + 3) % 13;
+    const scoreVariation = ((seed - 6) / 6) * 5;
+    const passedVariation = Math.round(((seed - 6) / 6) * 8);
+    const failedVariation = Math.round(((12 - seed) / 12) * 4);
+    return {
+      date: d.toISOString().split('T')[0],
+      score: Math.max(80, Math.min(100, baseScore + scoreVariation)),
+      passed: Math.max(0, basePassed + passedVariation),
+      failed: Math.max(0, baseFailed + failedVariation),
+    };
+  });
+}
 
 const STATUS_COLORS = {
   PASS: '#10b981',
@@ -296,6 +304,9 @@ export function ValidationDashboard() {
   );
 
   const report = reportData ?? fallbackReport;
+
+  // Derive stable trend data from the actual report scores
+  const trendData = generateStableTrend(report.overall_score, report.passed, report.failed);
 
   const statusDistribution = [
     { name: 'Passed', value: report.passed, fill: STATUS_COLORS.PASS },

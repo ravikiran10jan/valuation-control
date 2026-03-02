@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -32,11 +32,12 @@ import {
   formatDateTime,
   cn,
 } from '@/utils/format';
-import type { ValuationMethod, Greek, PnLAttribution, PositionHistory, PositionReserveResult, AVAComponentsDetail, AmortizationEntry } from '@/types';
+import type { ValuationMethod, Greek, PnLAttribution, PositionHistory, PositionReserveResult, AVAComponentsDetail, AmortizationEntry, PositionDeepDiveData } from '@/types';
 import { api } from '@/services/api';
+import { useApi } from '@/hooks/useApi';
 
 // FX position detail data from IPV_FX_Model — EUR/USD Barrier (DNT)
-const mockPosition = {
+const fallbackPosition = {
   position_id: 7,
   trade_id: 'FX-OPT-001',
   product_type: 'Barrier (DNT)',
@@ -74,7 +75,7 @@ const mockPosition = {
   transaction_price: 425000,
 };
 
-const mockValuationMethods: ValuationMethod[] = [
+const fallbackValuationMethods: ValuationMethod[] = [
   { method: 'Black-Scholes (Closed-Form)', value: 306000 },
   { method: 'Monte Carlo (50k paths, daily obs)', value: 306213, diff_pct: 0.07 },
   { method: 'PDE Finite Difference', value: 305800, diff_pct: -0.07 },
@@ -82,14 +83,14 @@ const mockValuationMethods: ValuationMethod[] = [
   { method: 'Desk Mark (Client Quote)', value: 425000, diff_pct: 38.9 },
 ];
 
-const mockGreeks: Greek[] = [
+const fallbackGreeks: Greek[] = [
   { name: 'Delta', value: -15000, unit: 'USD per 1% spot move' },
   { name: 'Vega', value: -21000, unit: 'USD per 1% vol' },
   { name: 'Gamma', value: 450, unit: 'USD per (1% spot)^2' },
   { name: 'Theta', value: 120, unit: 'USD per day' },
 ];
 
-const mockPnLAttribution: PnLAttribution[] = Array.from({ length: 30 }, (_, i) => {
+const fallbackPnLAttribution: PnLAttribution[] = Array.from({ length: 30 }, (_, i) => {
   const date = new Date();
   date.setDate(date.getDate() - (29 - i));
   return {
@@ -101,12 +102,12 @@ const mockPnLAttribution: PnLAttribution[] = Array.from({ length: 30 }, (_, i) =
   };
 });
 
-const mockMCConvergence = Array.from({ length: 10 }, (_, i) => ({
+const fallbackMCConvergence = Array.from({ length: 10 }, (_, i) => ({
   paths: (i + 1) * 5000,
   value: 306000 + (Math.random() - 0.5) * 2000 * (10 - i) / 10,
 }));
 
-const mockHistory: PositionHistory[] = [
+const fallbackHistory: PositionHistory[] = [
   {
     id: '1',
     date: '2025-02-14T17:00:00Z',
@@ -144,7 +145,7 @@ const mockHistory: PositionHistory[] = [
   },
 ];
 
-const mockDocuments = [
+const fallbackDocuments = [
   { name: 'EUR_USD_DNT_Term_Sheet.pdf', uploaded: '2025-01-05' },
   { name: 'BS_Model_Output_14Feb2025.xlsx', uploaded: '2025-02-14' },
   { name: 'Desk_Trader_Justification.docx', uploaded: '2025-02-14' },
@@ -164,7 +165,7 @@ const AVA_CATEGORY_LABELS: Record<keyof AVAComponentsDetail, string> = {
 };
 
 // Mock dispute data for the position
-const mockDispute = {
+const fallbackDispute = {
   dispute_id: 1,
   exception_id: 101,
   position_id: 7,
@@ -202,7 +203,7 @@ const mockDispute = {
 };
 
 // Current user context (would come from auth in real app)
-const mockCurrentUser = {
+const fallbackCurrentUser = {
   email: 'david.liu@bank.com',
   name: 'David Liu',
   role: 'VC' as const,
@@ -211,33 +212,48 @@ const mockCurrentUser = {
 export function PositionDetail() {
   const { positionId } = useParams();
   const navigate = useNavigate();
+  const positionIdNum = Number(positionId) || fallbackPosition.position_id;
+
   const [activeTab, setActiveTab] = useState('overview');
   const [reserveData, setReserveData] = useState<PositionReserveResult | null>(null);
   const [reserveLoading, setReserveLoading] = useState(false);
   const [avaExpanded, setAvaExpanded] = useState(false);
   const [amortExpanded, setAmortExpanded] = useState(false);
 
-  const position = mockPosition;
+  // ── Fetch position deep-dive from all agents (1,2,4,5) ──
+  const { data: deepDive, loading: positionLoading, error: positionError } = useApi<PositionDeepDiveData>(
+    () => api.getIPVPositionDetail(positionIdNum),
+    [positionIdNum]
+  );
+
+  // Merge API data with fallback
+  const position = deepDive ?? fallbackPosition;
+  const greeks: Greek[] = deepDive?.greeks?.greeks ?? fallbackGreeks;
+  const activeDispute = useMemo(
+    () => (deepDive?.disputes && deepDive.disputes.length > 0 ? deepDive.disputes[0] : fallbackDispute),
+    [deepDive]
+  );
 
   const loadReserves = useCallback(async () => {
     setReserveLoading(true);
     try {
       const classificationMap: Record<string, string> = { L1: 'Level1', L2: 'Level2', L3: 'Level3' };
+      const fvl = (position as Record<string, unknown>).fair_value_level as string || 'L2';
       const result = await api.calculateAllReserves({
         position: {
           position_id: position.position_id,
           trade_id: position.trade_id,
           product_type: position.product_type,
           asset_class: position.asset_class,
-          notional: position.notional,
+          notional: position.notional ?? (position as Record<string, unknown>).notional_usd as number ?? 0,
           currency: position.currency,
           trade_date: position.trade_date,
           maturity_date: position.maturity_date,
           desk_mark: position.desk_mark,
           vc_fair_value: position.vc_fair_value,
-          classification: classificationMap[position.fair_value_level] ?? 'Level2',
+          classification: classificationMap[fvl] ?? 'Level2',
           position_direction: 'LONG',
-          transaction_price: position.transaction_price,
+          transaction_price: (position as Record<string, unknown>).transaction_price as number ?? position.desk_mark,
         },
         model_results: [
           { model: 'Black-Scholes', value: 306000 },
@@ -252,7 +268,7 @@ export function PositionDetail() {
     } finally {
       setReserveLoading(false);
     }
-  }, []);
+  }, [position]);
 
   useEffect(() => {
     loadReserves();
@@ -284,6 +300,12 @@ export function PositionDetail() {
 
   return (
     <div className="space-y-6">
+      {positionError && (
+        <div className="px-4 py-2 rounded-lg bg-amber-50 text-amber-700 text-sm border border-amber-200">
+          Using cached data — backend unavailable ({positionError})
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
@@ -297,7 +319,7 @@ export function PositionDetail() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-enterprise-800">
-                Position #{positionId} - {position.product_type}
+                {positionLoading ? 'Loading...' : `Position #${positionId} - ${position.product_type}`}
               </h1>
               <Badge
                 variant={
@@ -312,7 +334,7 @@ export function PositionDetail() {
               </Badge>
             </div>
             <p className="text-sm text-enterprise-500 mt-1">
-              Last valued: {formatDateTime(position.last_valued)}
+              Last valued: {formatDateTime((position as Record<string, unknown>).last_valued as string ?? position.updated_at ?? position.valuation_date)}
             </p>
           </div>
         </div>
@@ -355,8 +377,8 @@ export function PositionDetail() {
                   <dd className="font-medium text-enterprise-800">{formatDate(position.maturity_date)}</dd>
                 </div>
                 <div className="flex justify-between py-2">
-                  <dt className="text-enterprise-500">Trader</dt>
-                  <dd className="font-medium text-enterprise-800">{position.trader} ({position.desk})</dd>
+                  <dt className="text-enterprise-500">Counterparty</dt>
+                  <dd className="font-medium text-enterprise-800">{position.counterparty ?? ((position as Record<string, unknown>).trader as string ?? 'N/A')}</dd>
                 </div>
               </dl>
             </Card>
@@ -382,7 +404,7 @@ export function PositionDetail() {
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-enterprise-500">Last Valued</dt>
-                  <dd className="font-medium text-enterprise-800">{formatDateTime(position.last_valued)}</dd>
+                  <dd className="font-medium text-enterprise-800">{formatDateTime((position as Record<string, unknown>).last_valued as string ?? position.updated_at ?? position.valuation_date)}</dd>
                 </div>
               </dl>
             </Card>
@@ -507,44 +529,57 @@ export function PositionDetail() {
             </Card>
           </div>
 
-          {/* Market Data */}
-          <Card title={`Market Data (as of ${formatDate(position.valuation_date)})`}>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-              <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
-                <p className="text-sm text-enterprise-500 font-medium">EUR/USD Spot</p>
-                <p className="text-xl font-bold mt-1 text-enterprise-800">
-                  {position.market_data.spot.value}
-                </p>
-                <p className="text-xs text-enterprise-400">{position.market_data.spot.source}</p>
+          {/* Market Data — shown when available (e.g. from fallback or enriched API response) */}
+          {(position as Record<string, unknown>).market_data && (
+            <Card title={`Market Data (as of ${formatDate(position.valuation_date)})`}>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+                {(() => {
+                  const md = (position as Record<string, unknown>).market_data as Record<string, unknown>;
+                  const spot = md.spot as { value: number; source: string } | undefined;
+                  const vol = md.volatility as { value: number; source: string } | undefined;
+                  return (
+                    <>
+                      {spot && (
+                        <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
+                          <p className="text-sm text-enterprise-500 font-medium">{position.currency_pair ?? 'Spot'}</p>
+                          <p className="text-xl font-bold mt-1 text-enterprise-800">{spot.value}</p>
+                          <p className="text-xs text-enterprise-400">{spot.source}</p>
+                        </div>
+                      )}
+                      {md.lower_barrier != null && (
+                        <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
+                          <p className="text-sm text-enterprise-500 font-medium">Lower Barrier</p>
+                          <p className="text-xl font-bold mt-1 text-enterprise-800">{md.lower_barrier as number}</p>
+                        </div>
+                      )}
+                      {md.upper_barrier != null && (
+                        <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
+                          <p className="text-sm text-enterprise-500 font-medium">Upper Barrier</p>
+                          <p className="text-xl font-bold mt-1 text-enterprise-800">{md.upper_barrier as number}</p>
+                        </div>
+                      )}
+                      {vol && (
+                        <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
+                          <p className="text-sm text-enterprise-500 font-medium">Volatility (1Y ATM)</p>
+                          <p className="text-xl font-bold mt-1 text-enterprise-800">{vol.value}%</p>
+                          <p className="text-xs text-enterprise-400">{vol.source}</p>
+                        </div>
+                      )}
+                      {md.survival_probability != null && (
+                        <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
+                          <p className="text-sm text-enterprise-500 font-medium">Survival Probability</p>
+                          <p className="text-xl font-bold mt-1 text-enterprise-800">
+                            {((md.survival_probability as number) * 100).toFixed(0)}%
+                          </p>
+                          <p className="text-xs text-enterprise-400">Calculated</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
-              <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
-                <p className="text-sm text-enterprise-500 font-medium">Lower Barrier</p>
-                <p className="text-xl font-bold mt-1 text-enterprise-800">
-                  {position.market_data.lower_barrier}
-                </p>
-              </div>
-              <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
-                <p className="text-sm text-enterprise-500 font-medium">Upper Barrier</p>
-                <p className="text-xl font-bold mt-1 text-enterprise-800">
-                  {position.market_data.upper_barrier}
-                </p>
-              </div>
-              <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
-                <p className="text-sm text-enterprise-500 font-medium">Volatility (1Y ATM)</p>
-                <p className="text-xl font-bold mt-1 text-enterprise-800">
-                  {position.market_data.volatility.value}%
-                </p>
-                <p className="text-xs text-enterprise-400">{position.market_data.volatility.source}</p>
-              </div>
-              <div className="p-4 bg-enterprise-50 rounded-lg border border-enterprise-200">
-                <p className="text-sm text-enterprise-500 font-medium">Survival Probability</p>
-                <p className="text-xl font-bold mt-1 text-enterprise-800">
-                  {(position.market_data.survival_probability * 100).toFixed(0)}%
-                </p>
-                <p className="text-xs text-enterprise-400">Calculated</p>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          )}
         </div>
       )}
 
@@ -562,7 +597,7 @@ export function PositionDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {mockValuationMethods.map((method, idx) => (
+                  {fallbackValuationMethods.map((method, idx) => (
                     <tr
                       key={method.method}
                       className={cn(
@@ -606,7 +641,7 @@ export function PositionDetail() {
           <Card title="Model Convergence (Monte Carlo)">
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mockMCConvergence}>
+                <LineChart data={fallbackMCConvergence}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis
                     dataKey="paths"
@@ -664,7 +699,7 @@ export function PositionDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {mockGreeks.map((greek) => (
+                  {greeks.map((greek) => (
                     <tr key={greek.name} className="border-b border-enterprise-100">
                       <td className="px-4 py-3 font-medium text-enterprise-800">{greek.name}</td>
                       <td className="px-4 py-3 text-right font-mono text-enterprise-800">
@@ -684,7 +719,7 @@ export function PositionDetail() {
           <Card title="P&L Attribution (Last 30 Days)">
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockPnLAttribution.slice(-14)}>
+                <BarChart data={fallbackPnLAttribution.slice(-14)}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis
                     dataKey="date"
@@ -771,21 +806,21 @@ export function PositionDetail() {
 
       {activeTab === 'dispute' && (
         <DisputePanel
-          positionId={7}
-          exceptionId={101}
-          dispute={mockDispute}
+          positionId={positionIdNum}
+          exceptionId={activeDispute.exception_id ?? 0}
+          dispute={activeDispute}
           deskMark={position.desk_mark}
           vcFairValue={position.vc_fair_value}
-          currentUser={mockCurrentUser}
+          currentUser={fallbackCurrentUser}
         />
       )}
 
       {activeTab === 'history' && (
         <Card title="Position History">
           <div className="space-y-4">
-            {mockHistory.map((event, idx) => (
+            {fallbackHistory.map((event, idx) => (
               <div key={event.id} className="relative">
-                {idx < mockHistory.length - 1 && (
+                {idx < fallbackHistory.length - 1 && (
                   <div className="absolute left-[7px] top-8 w-0.5 h-full bg-enterprise-200" />
                 )}
                 <div className="flex items-start gap-4">
@@ -812,7 +847,7 @@ export function PositionDetail() {
       {activeTab === 'documents' && (
         <Card title="Documents">
           <div className="space-y-2">
-            {mockDocuments.map((doc) => (
+            {fallbackDocuments.map((doc) => (
               <div
                 key={doc.name}
                 className="flex items-center justify-between p-4 rounded-lg bg-enterprise-50 hover:bg-enterprise-100 cursor-pointer transition-colors border border-transparent hover:border-enterprise-200"

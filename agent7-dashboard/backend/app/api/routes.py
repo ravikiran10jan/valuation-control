@@ -25,6 +25,7 @@ from app.services.ipv_aggregator import (
     get_capital_adequacy_dashboard,
     get_position_deep_dive,
     get_fv_hierarchy_summary,
+    get_level_transfers,
     get_validation_report,
 )
 
@@ -164,3 +165,13 @@ async def get_fv_hierarchy():
     counts, book values, and disclosure requirements.
     """
     return await get_fv_hierarchy_summary()
+
+
+@router.get("/fv-hierarchy/transfers")
+async def get_fv_level_transfers():
+    """Fair value level transfers — tracks movements between L1/L2/L3.
+
+    Analyses exception and audit data to identify positions that have
+    changed fair value levels.
+    """
+    return await get_level_transfers()

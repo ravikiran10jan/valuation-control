@@ -84,8 +84,8 @@ const LEVEL_NAMES: Record<string, string> = {
   L3: 'Level 3 -- Unobservable Inputs',
 };
 
-// Mock transfer data
-const transferData = [
+// Fallback transfer data (used when backend is unavailable)
+const fallbackTransfers = [
   { from: 'L2', to: 'L3', count: 8, reason: 'Market became illiquid' },
   { from: 'L3', to: 'L2', count: 3, reason: 'Observable prices became available' },
   { from: 'L1', to: 'L2', count: 5, reason: 'Delisted or reduced trading volume' },
@@ -99,7 +99,14 @@ export function FVHierarchyView() {
     fallbackHierarchy
   );
 
+  const { data: transfersData } = useApi(
+    () => api.getFVLevelTransfers(),
+    [],
+    fallbackTransfers
+  );
+
   const hierarchy = hierarchyData ?? fallbackHierarchy;
+  const transferData = transfersData ?? fallbackTransfers;
   const totalPositions = hierarchy.reduce((s, h) => s + h.position_count, 0);
   const totalBookValue = hierarchy.reduce((s, h) => s + h.book_value, 0);
 

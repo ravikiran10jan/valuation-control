@@ -136,31 +136,46 @@ export function ReportingPortal() {
     setError(null);
     const reportingDate = getReportingDate();
 
+    const reportMeta = mockReports.find((r) => r.id === reportId);
+    const trackDownload = (name: string) => {
+      setRecentDownloads((prev) => [
+        { name, generated: new Date().toISOString(), size: 'Generated' },
+        ...prev.slice(0, 19),
+      ]);
+    };
+
     try {
       switch (reportId) {
         case 'pillar3': {
           const report = await api.generatePillar3(reportingDate);
           setGeneratedReports((prev) => ({ ...prev, pillar3: report }));
+          trackDownload(`Pillar3_${reportingDate}.pdf`);
           break;
         }
         case 'ifrs13': {
           const report = await api.generateIFRS13(reportingDate);
           setGeneratedReports((prev) => ({ ...prev, ifrs13: report }));
+          trackDownload(`IFRS13_${reportingDate}.pdf`);
           break;
         }
         case 'pra110': {
           const report = await api.generatePRA110(reportingDate);
           setGeneratedReports((prev) => ({ ...prev, pra110: report }));
+          trackDownload(`PRA110_${reportingDate}.xml`);
           break;
         }
         case 'fry14q': {
           const report = await api.generateFRY14Q(reportingDate);
           setGeneratedReports((prev) => ({ ...prev, fry14q: report }));
+          trackDownload(`FRY14Q_${reportingDate}.csv`);
           break;
         }
-        default:
+        default: {
           // For non-regulatory reports, use the generic report generation
           await api.generateReport(reportId, { reporting_date: reportingDate });
+          const ext = reportMeta?.format?.toLowerCase() ?? 'pdf';
+          trackDownload(`${reportId}_${reportingDate}.${ext}`);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate report');
@@ -207,14 +222,34 @@ export function ReportingPortal() {
     );
   };
 
-  const handleGenerateCustomReport = () => {
-    console.log({
-      type: selectedReportType,
-      format: selectedFormat,
-      assetClasses: selectedAssetClasses,
-      columns: selectedColumns,
-      dateRange,
-    });
+  const [customGenerating, setCustomGenerating] = useState(false);
+  const [recentDownloads, setRecentDownloads] = useState<
+    Array<{ name: string; generated: string; size: string }>
+  >([]);
+
+  const handleGenerateCustomReport = async () => {
+    setCustomGenerating(true);
+    setError(null);
+    try {
+      const result = await api.exportToExcel(selectedReportType.toLowerCase().replace(/\s+/g, '_'), {
+        format: selectedFormat,
+        asset_classes: selectedAssetClasses.length > 0 ? selectedAssetClasses : undefined,
+        columns: selectedColumns,
+        date_range: dateRange.start && dateRange.end ? dateRange : undefined,
+      });
+      const fileName = `${selectedReportType.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${selectedFormat.toLowerCase()}`;
+      setRecentDownloads((prev) => [
+        { name: fileName, generated: new Date().toISOString(), size: 'Generating...' },
+        ...prev,
+      ]);
+      if (result.download_url) {
+        window.open(result.download_url, '_blank');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate custom report');
+    } finally {
+      setCustomGenerating(false);
+    }
   };
 
   return (
@@ -492,63 +527,52 @@ export function ReportingPortal() {
             <div className="pt-4">
               <Button
                 className="w-full"
-                icon={<Plus size={16} />}
+                icon={customGenerating
+                  ? <div className="w-4 h-4 border-2 border-enterprise-400 border-t-transparent rounded-full animate-spin" />
+                  : <Plus size={16} />
+                }
                 onClick={handleGenerateCustomReport}
-                disabled={selectedColumns.length === 0}
+                disabled={selectedColumns.length === 0 || customGenerating}
               >
-                Generate Custom Report
+                {customGenerating ? 'Generating...' : 'Generate Custom Report'}
               </Button>
             </div>
           </div>
         </div>
       </Card>
 
-      {/* Recent Reports */}
-      <Card title="Recent Downloads">
-        <div className="space-y-2">
-          {[
-            {
-              name: 'FX_Daily_Valuation_14Feb2025.xlsx',
-              generated: '2025-02-14T17:00:00Z',
-              size: '1.2 MB',
-            },
-            {
-              name: 'FX_Exception_Summary_14Feb2025.pptx',
-              generated: '2025-02-14T17:00:00Z',
-              size: '980 KB',
-            },
-            {
-              name: 'FVA_AVA_Reserve_Jan2025.pdf',
-              generated: '2025-02-01T08:00:00Z',
-              size: '456 KB',
-            },
-          ].map((file) => (
-            <div
-              key={file.name}
-              className="flex items-center justify-between p-4 rounded-lg bg-enterprise-50 hover:bg-enterprise-100 cursor-pointer transition-colors border border-transparent hover:border-enterprise-200"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white rounded-lg border border-enterprise-200">
-                  {formatIcons[file.name.split('.').pop()?.toUpperCase() === 'XLSX'
-                    ? 'Excel'
-                    : file.name.split('.').pop()?.toUpperCase() === 'PPTX'
-                    ? 'PowerPoint'
-                    : 'PDF']}
+      {/* Recent Reports — dynamically tracked from generated reports */}
+      {recentDownloads.length > 0 && (
+        <Card title="Recent Downloads">
+          <div className="space-y-2">
+            {recentDownloads.map((file, idx) => {
+              const ext = file.name.split('.').pop()?.toLowerCase();
+              const formatKey = ext === 'xlsx' ? 'Excel' : ext === 'pptx' ? 'PowerPoint' : ext === 'csv' ? 'CSV' : ext === 'xml' ? 'XML' : 'PDF';
+              return (
+                <div
+                  key={`${file.name}-${idx}`}
+                  className="flex items-center justify-between p-4 rounded-lg bg-enterprise-50 hover:bg-enterprise-100 cursor-pointer transition-colors border border-transparent hover:border-enterprise-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg border border-enterprise-200">
+                      {formatIcons[formatKey]}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm text-enterprise-800">{file.name}</p>
+                      <p className="text-xs text-enterprise-500">
+                        {formatDateTime(file.generated)} - {file.size}
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" icon={<Download size={16} />}>
+                    Download
+                  </Button>
                 </div>
-                <div>
-                  <p className="font-medium text-sm text-enterprise-800">{file.name}</p>
-                  <p className="text-xs text-enterprise-500">
-                    {formatDateTime(file.generated)} - {file.size}
-                  </p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" icon={<Download size={16} />}>
-                Download
-              </Button>
-            </div>
-          ))}
-        </div>
-      </Card>
+              );
+            })}
+          </div>
+        </Card>
+      )}
         </>
       ) : (
         /* Audit Trail Tab */

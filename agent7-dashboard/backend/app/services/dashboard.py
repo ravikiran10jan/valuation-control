@@ -136,6 +136,48 @@ async def get_exception_trends(days: int = 90) -> list[dict]:
     return sorted(by_date.values(), key=lambda x: x["date"])
 
 
+async def get_exception_aging() -> list[dict]:
+    """Compute average exception aging grouped by desk and asset class.
+
+    Fetches open exceptions from Agent 1 and groups by desk × asset_class
+    to compute average days_open for the exception aging heatmap.
+
+    Returns:
+        List of dicts with desk, asset_class, avg_days, count.
+    """
+    try:
+        all_exceptions = await agent1_get("/exceptions/", params={
+            "limit": 10000,
+        })
+    except Exception:
+        log.warning("exception_aging_fetch_failed")
+        all_exceptions = []
+
+    # Group by desk × asset_class
+    groups: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"total_days": 0, "count": 0}
+    )
+
+    for exc in all_exceptions:
+        if exc.get("status") in ("RESOLVED", "CLOSED"):
+            continue
+        desk = exc.get("desk") or "Unknown"
+        ac = exc.get("asset_class") or "Unknown"
+        days = int(exc.get("days_open") or 0)
+        groups[(desk, ac)]["total_days"] += days
+        groups[(desk, ac)]["count"] += 1
+
+    return [
+        {
+            "desk": desk,
+            "asset_class": ac,
+            "avg_days": round(data["total_days"] / data["count"]) if data["count"] > 0 else 0,
+            "count": data["count"],
+        }
+        for (desk, ac), data in sorted(groups.items())
+    ]
+
+
 async def get_position_detail(position_id: int) -> dict:
     """Get enriched position detail with reserves data.
 

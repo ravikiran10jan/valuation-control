@@ -29,3 +29,9 @@ async def get_asset_breakdown():
 async def get_exception_trends(days: int = Query(90, le=365)):
     """Exception counts over the last N days grouped by date."""
     return await dashboard.get_exception_trends(days)
+
+
+@router.get("/exception-aging")
+async def get_exception_aging():
+    """Exception aging heatmap — avg days open by desk × asset class."""
+    return await dashboard.get_exception_aging()

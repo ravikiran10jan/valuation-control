@@ -81,6 +81,79 @@ function Skeleton({ className }: { className?: string }) {
   );
 }
 
+type AgingEntry = { desk: string; asset_class: string; avg_days: number; count: number };
+
+const fallbackAging: AgingEntry[] = [
+  { desk: 'FX Options', asset_class: 'FX', avg_days: 4, count: 3 },
+  { desk: 'FX Options', asset_class: 'Rates', avg_days: 2, count: 1 },
+  { desk: 'Rates Trading', asset_class: 'Rates', avg_days: 6, count: 5 },
+  { desk: 'Rates Trading', asset_class: 'Credit', avg_days: 3, count: 2 },
+  { desk: 'Credit Desk', asset_class: 'Credit', avg_days: 7, count: 4 },
+  { desk: 'Credit Desk', asset_class: 'Equity', avg_days: 1, count: 1 },
+  { desk: 'Equity Derivatives', asset_class: 'Equity', avg_days: 5, count: 3 },
+  { desk: 'Equity Derivatives', asset_class: 'Commodities', avg_days: 2, count: 1 },
+];
+
+function ExceptionAgingHeatmap() {
+  const { data: agingData } = useApi<AgingEntry[]>(
+    () => api.getExceptionAging(),
+    [],
+    fallbackAging
+  );
+
+  const rows = agingData ?? fallbackAging;
+
+  // Derive unique desks and asset classes from data
+  const desks = [...new Set(rows.map((r) => r.desk))];
+  const assetClasses = [...new Set(rows.map((r) => r.asset_class))];
+
+  // Build lookup
+  const lookup = new Map(rows.map((r) => [`${r.desk}|${r.asset_class}`, r]));
+
+  return (
+    <Card title="Exception Aging by Desk">
+      {desks.length === 0 ? (
+        <p className="text-sm text-slate-500 text-center py-4">No open exceptions</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${assetClasses.length}, 1fr) auto` }}
+          >
+            {assetClasses.map((ac) => (
+              <div key={ac} className="text-center text-sm text-slate-400 font-medium">{ac}</div>
+            ))}
+            <div />
+            {desks.map((desk) => (
+              <div key={desk} className="contents">
+                {assetClasses.map((ac) => {
+                  const entry = lookup.get(`${desk}|${ac}`);
+                  const days = entry?.avg_days ?? 0;
+                  const count = entry?.count ?? 0;
+                  const intensity =
+                    count === 0 ? 'bg-slate-700/20' :
+                    days < 3 ? 'bg-green-500/30' :
+                    days < 5 ? 'bg-amber-500/30' : 'bg-red-500/30';
+                  return (
+                    <div
+                      key={`${desk}-${ac}`}
+                      className={cn('h-12 rounded flex items-center justify-center text-sm', intensity)}
+                      title={count > 0 ? `${count} exceptions, avg ${days}d open` : 'No exceptions'}
+                    >
+                      {count > 0 ? `${days}d` : '-'}
+                    </div>
+                  );
+                })}
+                <div className="text-sm text-slate-400 flex items-center">{desk}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function ExecutiveDashboard() {
   const { data: kpis, loading: kpisLoading, error: kpisError } =
     useApi(() => api.getKPIs(), [], fallbackKPIs);
@@ -285,28 +358,7 @@ export function ExecutiveDashboard() {
         </Card>
       </div>
 
-      <Card title="Exception Aging by Desk">
-        <div className="grid grid-cols-6 gap-2">
-          {['FX', 'Rates', 'Credit', 'Equity', 'Commodities'].map((asset) => (
-            <div key={asset} className="text-center text-sm text-slate-400 font-medium">{asset}</div>
-          ))}
-          <div></div>
-          {['Desk A', 'Desk B', 'Desk C', 'Desk D'].map((desk) => (
-            <div key={desk} className="contents">
-              {['FX', 'Rates', 'Credit', 'Equity', 'Commodities'].map((asset) => {
-                const days = Math.floor(Math.random() * 10);
-                const intensity = days < 3 ? 'bg-green-500/30' : days < 5 ? 'bg-amber-500/30' : 'bg-red-500/30';
-                return (
-                  <div key={`${desk}-${asset}`} className={cn('h-12 rounded flex items-center justify-center text-sm', intensity)}>
-                    {days}d
-                  </div>
-                );
-              })}
-              <div className="text-sm text-slate-400 flex items-center">{desk}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <ExceptionAgingHeatmap />
     </div>
   );
 }

@@ -152,6 +152,9 @@ export const api = {
   getAssetClassBreakdown: () =>
     fetchJson<AssetClassBreakdown[]>('/dashboard/asset-breakdown'),
 
+  getExceptionAging: () =>
+    fetchJson<Array<{ desk: string; asset_class: string; avg_days: number; count: number }>>('/dashboard/exception-aging'),
+
   // ── Alerts ────────────────────────────────────────────────────
   getAlerts: () => fetchJson<Alert[]>('/alerts'),
   markAlertRead: (id: string) =>
@@ -414,4 +417,7 @@ export const api = {
 
   // ── FV Hierarchy ─────────────────────────────────────────────────
   getFVHierarchy: () => fetchJson<FVHierarchySummary[]>('/fv-hierarchy'),
+
+  getFVLevelTransfers: () =>
+    fetchJson<Array<{ from: string; to: string; count: number; reason: string }>>('/fv-hierarchy/transfers'),
 };
