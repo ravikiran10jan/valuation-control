@@ -1120,11 +1120,11 @@ async def get_seed_status(db: AsyncSession) -> dict[str, Any]:
         mongo_vol_count = -1
 
     is_complete = (
-        pos_count >= 7
-        and mds_count >= 20
-        and dq_count >= 3
-        and exc_count >= 2
-        and comp_count >= 7
+        pos_count >= 48
+        and mds_count >= 50
+        and dq_count >= 30
+        and exc_count >= 10
+        and comp_count >= 48
         and barrier_count >= 1
     )
 
@@ -1143,12 +1143,12 @@ async def get_seed_status(db: AsyncSession) -> dict[str, Any]:
             "mongo_vol_surface": mongo_vol_count,
         },
         "expected": {
-            "positions": 7,
-            "market_data_snapshots": "~47 (spot/bid/ask/spread + fwd curve + vol surface)",
-            "dealer_quotes": 3,
-            "exceptions": "2-3 (AMBER + RED positions)",
-            "valuation_comparisons": 7,
-            "fx_barrier_details": 1,
+            "positions": "48 (7 FX + 14 Rates + 12 FX Products + 15 Credit/Commodity)",
+            "market_data_snapshots": "~100+ (FX + yield curves + CDS + commodity + muni)",
+            "dealer_quotes": "~33 (FX barrier + FX exotics + L3 credit)",
+            "exceptions": "~20 (AMBER + RED positions across all asset classes)",
+            "valuation_comparisons": 48,
+            "fx_barrier_details": "5 (1 original + 4 new exotics)",
         },
     }
 
@@ -1161,52 +1161,86 @@ async def get_seed_status(db: AsyncSession) -> dict[str, Any]:
 async def seed_all(db: AsyncSession) -> dict[str, Any]:
     """Seed all data in the correct order. Returns a summary of what was seeded.
 
-    Order:
-    1. Positions (7 FX positions)
-    2. Barrier detail (for FX-OPT-001)
-    3. Market data (PostgreSQL snapshots)
-    4. Forward curve
-    5. Vol surface (PostgreSQL + MongoDB)
-    6. Market data (MongoDB)
-    7. Dealer quotes
-    8. Valuation comparisons (IPV tolerance results)
-    9. Exceptions (AMBER/RED)
-    10. Exception comments
-    11. Committee agenda items (for RED)
+    Seeds FX positions (original 7), then Rates, FX Products, Credit/Commodity,
+    XVA adjustments, market data, exceptions, comparisons, and committee agenda.
     """
+    from app.seed_rates import seed_rates_positions, seed_rates_details
+    from app.seed_fx_products import seed_fx_positions, seed_fx_details, seed_fx_dealer_quotes
+    from app.seed_credit_commodity import (
+        seed_credit_commodity_positions,
+        seed_credit_details,
+        seed_structured_product_details,
+        seed_commodity_details,
+        seed_credit_commodity_dealer_quotes,
+    )
+    from app.seed_xva_market_data import (
+        seed_xva_adjustments,
+        seed_new_market_data,
+        seed_new_exceptions,
+        seed_new_comparisons,
+    )
+
     results: dict[str, Any] = {}
 
-    # 1. Positions
+    # ── Phase 1: Original FX positions ──────────────────────────────
     positions = await seed_positions(db)
-    results["positions_created"] = len(positions)
+    results["fx_positions_created"] = len(positions)
 
-    # If no new positions were created, load existing ones for downstream seeding
     if not positions:
         pos_result = await db.execute(select(Position))
         positions = list(pos_result.scalars().all())
-        results["positions_created"] = 0
-        results["positions_existing"] = len(positions)
+        results["fx_positions_created"] = 0
+        results["fx_positions_existing"] = len(positions)
 
-    # 2. Barrier detail
     barrier = await seed_barrier_detail(db, positions)
     results["barrier_detail_created"] = 1 if barrier else 0
 
-    # 3. Market data (PostgreSQL)
+    # ── Phase 2: Rates positions (IRS, Futures, Options, Munis) ─────
+    rates_positions = await seed_rates_positions(db)
+    results["rates_positions_created"] = len(rates_positions)
+    if rates_positions:
+        rates_details = await seed_rates_details(db, rates_positions)
+        results["rates_swap_details_created"] = len(rates_details.get("swap_details", []))
+        results["rates_bond_details_created"] = len(rates_details.get("bond_details", []))
+
+    # ── Phase 3: FX Products (Forwards, Vanilla Options, Exotics) ───
+    fx_positions = await seed_fx_positions(db)
+    results["fx_product_positions_created"] = len(fx_positions)
+    if fx_positions:
+        fx_details = await seed_fx_details(db, fx_positions)
+        results["fx_barrier_details_created"] = len(fx_details) if isinstance(fx_details, (list, dict)) else 0
+        fx_quotes = await seed_fx_dealer_quotes(db, fx_positions)
+        results["fx_dealer_quotes_created"] = len(fx_quotes)
+
+    # ── Phase 4: Credit & Commodity positions ───────────────────────
+    cc_positions = await seed_credit_commodity_positions(db)
+    results["credit_commodity_positions_created"] = len(cc_positions)
+    if cc_positions:
+        credit_dets = await seed_credit_details(db, cc_positions)
+        results["credit_details_created"] = len(credit_dets)
+        struct_dets = await seed_structured_product_details(db, cc_positions)
+        results["structured_product_details_created"] = len(struct_dets)
+        comm_dets = await seed_commodity_details(db, cc_positions)
+        results["commodity_details_created"] = len(comm_dets)
+        cc_quotes = await seed_credit_commodity_dealer_quotes(db, cc_positions)
+        results["credit_commodity_dealer_quotes_created"] = len(cc_quotes)
+
+    # Commit all positions before market data and downstream
+    await db.commit()
+
+    # ── Phase 5: Original market data ───────────────────────────────
     md_snapshots = await seed_market_data(db)
     results["market_data_snapshots_created"] = len(md_snapshots)
 
-    # 4. Forward curve
     fwd_snapshots = await seed_forward_curve(db)
     results["forward_curve_points_created"] = len(fwd_snapshots)
 
-    # 5. Vol surface (PostgreSQL)
     vol_snapshots = await seed_vol_surface_pg(db)
     results["vol_surface_pg_created"] = len(vol_snapshots)
 
-    # Commit PostgreSQL before moving to MongoDB
     await db.commit()
 
-    # 6. Vol surface (MongoDB)
+    # MongoDB
     try:
         vol_mongo_count = await seed_vol_surface_mongo()
         results["vol_surface_mongo_created"] = vol_mongo_count
@@ -1214,7 +1248,6 @@ async def seed_all(db: AsyncSession) -> dict[str, Any]:
         logger.warning("MongoDB vol surface seeding failed: %s", e)
         results["vol_surface_mongo_error"] = str(e)
 
-    # 7. Market data (MongoDB)
     try:
         md_mongo_count = await seed_market_data_mongo()
         results["market_data_mongo_created"] = md_mongo_count
@@ -1222,34 +1255,67 @@ async def seed_all(db: AsyncSession) -> dict[str, Any]:
         logger.warning("MongoDB market data seeding failed: %s", e)
         results["market_data_mongo_error"] = str(e)
 
-    # 8. Dealer quotes
+    # ── Phase 6: New market data (yield curves, CDS spreads, etc.) ──
+    try:
+        new_md = await seed_new_market_data(db)
+        results["new_market_data_created"] = len(new_md)
+    except Exception as e:
+        logger.warning("New market data seeding failed: %s", e)
+        results["new_market_data_error"] = str(e)
+
+    # ── Phase 7: XVA adjustments (CVA, FVA, DVA) ───────────────────
+    try:
+        xva_results = await seed_xva_adjustments(db)
+        results["xva_adjustments"] = xva_results
+    except Exception as e:
+        logger.warning("XVA adjustment seeding failed: %s", e)
+        results["xva_adjustments_error"] = str(e)
+
+    # ── Phase 8: Original dealer quotes + comparisons ───────────────
     quotes = await seed_dealer_quotes(db, positions)
-    results["dealer_quotes_created"] = len(quotes)
+    results["original_dealer_quotes_created"] = len(quotes)
 
-    # 9. Valuation comparisons
+    # Reload all positions for comparisons and exceptions
+    all_pos_result = await db.execute(select(Position))
+    all_positions = list(all_pos_result.scalars().all())
+
     comparisons = await seed_valuation_comparisons(db, positions)
-    results["valuation_comparisons_created"] = len(comparisons)
+    results["original_comparisons_created"] = len(comparisons)
 
-    # 10. Exceptions
-    exceptions = await seed_exceptions(db, positions)
+    # ── Phase 9: New comparisons for all new positions ──────────────
+    try:
+        new_comparisons = await seed_new_comparisons(db)
+        results["new_comparisons_created"] = len(new_comparisons)
+    except Exception as e:
+        logger.warning("New comparisons seeding failed: %s", e)
+        results["new_comparisons_error"] = str(e)
+
+    # ── Phase 10: Exceptions for ALL AMBER/RED positions ────────────
+    exceptions = await seed_exceptions(db, all_positions)
     results["exceptions_created"] = len(exceptions)
 
-    # 11. Exception comments
+    try:
+        new_exc, new_comments = await seed_new_exceptions(db)
+        results["new_exceptions_created"] = len(new_exc)
+        results["new_exception_comments_created"] = len(new_comments)
+    except Exception as e:
+        logger.warning("New exceptions seeding failed: %s", e)
+        results["new_exceptions_error"] = str(e)
+
+    # ── Phase 11: Original exception comments + committee agenda ────
     comments = await seed_exception_comments(db, exceptions)
     results["exception_comments_created"] = len(comments)
 
-    # 12. Committee agenda items
-    agenda_items = await seed_committee_agenda(db, exceptions)
+    agenda_items = await seed_committee_agenda(db)
     results["committee_agenda_items_created"] = len(agenda_items)
 
     # Final commit
     await db.commit()
 
-    # 13. Compute FV hierarchy summary
+    # ── Summary ─────────────────────────────────────────────────────
     fv_summary = await compute_fv_hierarchy_summary(db)
     results["fv_hierarchy_summary"] = fv_summary
 
-    # Overall status
     status = await get_seed_status(db)
     results["status"] = status
 
