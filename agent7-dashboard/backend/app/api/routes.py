@@ -168,7 +168,10 @@ async def get_fv_hierarchy():
     Groups all positions by their fair value level and computes
     counts, book values, and disclosure requirements.
     """
-    return await get_fv_hierarchy_summary()
+    try:
+        return await get_fv_hierarchy_summary()
+    except Exception:
+        return []
 
 
 @router.get("/fv-hierarchy/transfers")

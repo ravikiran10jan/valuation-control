@@ -326,10 +326,12 @@ class HestonModel(BaseSimulatorModel):
         delta = (p_up - p_dn) / (2 * bump_S)
         gamma = (p_up - 2 * price + p_dn) / (bump_S**2)
 
-        # Vega: bump v0
-        v0_bump = 0.01
+        # Vega: bump vol by 1% (0.01) — matches BSM convention
+        sigma0 = math.sqrt(v0)
+        sigma_bumped = sigma0 + 0.01
+        v0_bumped = sigma_bumped ** 2
         log_S_vup = np.full(n_paths, math.log(S0))
-        v_vup = np.full(n_paths, v0 + v0_bump)
+        v_vup = np.full(n_paths, v0_bumped)
         for t in range(n_steps):
             vp = np.maximum(v_vup, 0.0)
             log_S_vup += (r - q - 0.5 * vp) * dt + np.sqrt(vp) * math.sqrt(dt) * W_S[:, t]
@@ -339,12 +341,51 @@ class HestonModel(BaseSimulatorModel):
             p_vup = disc * float(np.mean(np.maximum(S_vup_f - K, 0.0)))
         else:
             p_vup = disc * float(np.mean(np.maximum(K - S_vup_f, 0.0)))
-        vega = p_vup - price  # per 1% vol ≈ 0.01 variance
+        vega = p_vup - price  # per 1% vol move (σ + 0.01)
+
+        # Theta: reprice with slightly shorter maturity
+        theta_bump = 1.0 / 365.0  # 1-day bump
+        if T > theta_bump:
+            n_steps_th = max(int(n_steps * (T - theta_bump) / T), 1)
+            dt_th = (T - theta_bump) / n_steps_th
+            disc_th = math.exp(-r * (T - theta_bump))
+            log_S_th = np.full(n_paths, math.log(S0))
+            v_th = np.full(n_paths, v0)
+            for t in range(n_steps_th):
+                vp = np.maximum(v_th, 0.0)
+                log_S_th += (r - q - 0.5 * vp) * dt_th + np.sqrt(vp) * math.sqrt(dt_th) * W_S[:, t % n_steps]
+                v_th += kappa * (theta - vp) * dt_th + xi * np.sqrt(vp) * math.sqrt(dt_th) * W_v[:, t % n_steps]
+            S_th_f = np.exp(log_S_th)
+            if is_call:
+                p_th = disc_th * float(np.mean(np.maximum(S_th_f - K, 0.0)))
+            else:
+                p_th = disc_th * float(np.mean(np.maximum(K - S_th_f, 0.0)))
+            theta_greek = (p_th - price)  # 1-day theta (negative = time decay)
+        else:
+            theta_greek = -price  # near-expiry: full loss
+
+        # Rho: bump risk-free rate by 1% (0.01)
+        r_bumped = r + 0.01
+        disc_rho = math.exp(-r_bumped * T)
+        log_S_rho = np.full(n_paths, math.log(S0))
+        v_rho = np.full(n_paths, v0)
+        for t in range(n_steps):
+            vp = np.maximum(v_rho, 0.0)
+            log_S_rho += (r_bumped - q - 0.5 * vp) * dt + np.sqrt(vp) * math.sqrt(dt) * W_S[:, t]
+            v_rho += kappa * (theta - vp) * dt + xi * np.sqrt(vp) * math.sqrt(dt) * W_v[:, t]
+        S_rho_f = np.exp(log_S_rho)
+        if is_call:
+            p_rho = disc_rho * float(np.mean(np.maximum(S_rho_f - K, 0.0)))
+        else:
+            p_rho = disc_rho * float(np.mean(np.maximum(K - S_rho_f, 0.0)))
+        rho_greek = p_rho - price  # per 1% rate move
 
         greeks = {
             "delta": round(delta, 6),
             "gamma": round(gamma, 6),
-            "vega_1pct_var": round(vega, 4),
+            "vega": round(vega, 6),
+            "theta": round(theta_greek, 6),
+            "rho": round(rho_greek, 6),
         }
 
         steps.append(CalculationStep(
@@ -353,7 +394,8 @@ class HestonModel(BaseSimulatorModel):
             formula=r"\Delta = \frac{V(S+\epsilon) - V(S-\epsilon)}{2\epsilon}",
             substitution=(
                 f"Δ={delta:.6f}  Γ={gamma:.6f}  "
-                f"Vega(1% var bump)={vega:.4f}"
+                f"V={vega:.4f}/1%  "
+                f"Θ={theta_greek:.4f}/day  ρ={rho_greek:.4f}/1%"
             ),
             result=round(delta, 6),
             explanation="Greeks computed via same-seed MC finite differences.",

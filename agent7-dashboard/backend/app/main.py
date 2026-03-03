@@ -63,6 +63,7 @@ from app.api.routes import router as ipv_lifecycle_router  # noqa: E402
 from app.api.simulator import router as simulator_router  # noqa: E402
 from app.api.disputes import router as disputes_router  # noqa: E402
 from app.api.reports import router as reports_router  # noqa: E402
+from app.api.day1_pnl import router as day1_pnl_router  # noqa: E402
 
 app.include_router(dashboard_router)
 app.include_router(exceptions_router)
@@ -74,6 +75,7 @@ app.include_router(ipv_lifecycle_router)
 app.include_router(simulator_router)
 app.include_router(disputes_router)
 app.include_router(reports_router)
+app.include_router(day1_pnl_router)
 
 # Serve the built frontend from dist/ in production
 dist_dir = os.path.join(os.path.dirname(__file__), "..", "..", "dist")

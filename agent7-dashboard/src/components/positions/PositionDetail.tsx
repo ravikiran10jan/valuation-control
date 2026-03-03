@@ -334,7 +334,7 @@ export function PositionDetail() {
               </Badge>
             </div>
             <p className="text-sm text-enterprise-500 mt-1">
-              Last valued: {formatDateTime((position as Record<string, unknown>).last_valued as string ?? position.updated_at ?? position.valuation_date)}
+              Last valued: {formatDateTime((position as Record<string, unknown>).last_valued as string ?? (position as Record<string, unknown>).updated_at as string ?? position.valuation_date)}
             </p>
           </div>
         </div>
@@ -404,7 +404,7 @@ export function PositionDetail() {
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-enterprise-500">Last Valued</dt>
-                  <dd className="font-medium text-enterprise-800">{formatDateTime((position as Record<string, unknown>).last_valued as string ?? position.updated_at ?? position.valuation_date)}</dd>
+                  <dd className="font-medium text-enterprise-800">{formatDateTime((position as Record<string, unknown>).last_valued as string ?? (position as Record<string, unknown>).updated_at as string ?? position.valuation_date)}</dd>
                 </div>
               </dl>
             </Card>
@@ -530,7 +530,7 @@ export function PositionDetail() {
           </div>
 
           {/* Market Data — shown when available (e.g. from fallback or enriched API response) */}
-          {(position as Record<string, unknown>).market_data && (
+          {!!(position as Record<string, unknown>).market_data && (
             <Card title={`Market Data (as of ${formatDate(position.valuation_date)})`}>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                 {(() => {

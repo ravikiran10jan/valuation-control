@@ -80,3 +80,19 @@ class AmortizationSchedule(Base):
     cumulative_recognized: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     remaining_deferred: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Day1PnLJournal(Base):
+    """Accounting journal entries for Day 1 P&L reserve movements."""
+
+    __tablename__ = "day1_pnl_journal"
+
+    entry_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    position_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    entry_date: Mapped[date] = mapped_column(Date, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    debit_account: Mapped[str] = mapped_column(String(100), nullable=False)
+    credit_account: Mapped[str] = mapped_column(String(100), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    entry_type: Mapped[str] = mapped_column(String(30), nullable=False)  # RESERVE_CREATION, AMORTIZATION, EXPIRY_RELEASE
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

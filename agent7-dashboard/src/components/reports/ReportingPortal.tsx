@@ -231,19 +231,27 @@ export function ReportingPortal() {
     setCustomGenerating(true);
     setError(null);
     try {
-      const result = await api.exportToExcel(selectedReportType.toLowerCase().replace(/\s+/g, '_'), {
+      const exportType = selectedReportType.toLowerCase().replace(/\s+/g, '_');
+      const result = await api.exportToExcel(exportType, {
         format: selectedFormat,
         asset_classes: selectedAssetClasses.length > 0 ? selectedAssetClasses : undefined,
         columns: selectedColumns,
         date_range: dateRange.start && dateRange.end ? dateRange : undefined,
       });
-      const fileName = `${selectedReportType.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${selectedFormat.toLowerCase()}`;
+      const ext = selectedFormat.toLowerCase() === 'csv' ? 'csv' : selectedFormat.toLowerCase();
+      const fileName = `${selectedReportType.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${ext}`;
       setRecentDownloads((prev) => [
-        { name: fileName, generated: new Date().toISOString(), size: 'Generating...' },
-        ...prev,
+        { name: fileName, generated: new Date().toISOString(), size: 'Ready' },
+        ...prev.slice(0, 19),
       ]);
       if (result.download_url) {
-        window.open(result.download_url, '_blank');
+        // Trigger actual file download
+        const link = document.createElement('a');
+        link.href = result.download_url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate custom report');

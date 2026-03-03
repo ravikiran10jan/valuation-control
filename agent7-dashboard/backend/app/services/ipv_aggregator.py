@@ -244,7 +244,11 @@ async def get_fv_hierarchy_summary() -> list[dict]:
     Returns:
         List of dicts with level, position_count, book_value, pct_of_total.
     """
-    positions = await agent1_get("/positions/", params={"limit": 10000})
+    try:
+        positions = await agent1_get("/positions/", params={"limit": 10000})
+    except Exception as exc:
+        log.warning("agent1_positions_unavailable_fv_hierarchy", error=str(exc))
+        positions = []
 
     levels: dict[str, dict] = defaultdict(
         lambda: {"position_count": 0, "book_value": 0.0}

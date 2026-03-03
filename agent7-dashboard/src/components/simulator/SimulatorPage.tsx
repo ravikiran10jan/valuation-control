@@ -387,6 +387,10 @@ export function SimulatorPage() {
       else next.add(mid);
       return next;
     });
+    // Auto-select the model in the right panel if nothing is selected yet
+    if (!selectedModelId) {
+      setSelectedModelId(mid);
+    }
   };
 
   // ── Render ──────────────────────────────────────────────────
@@ -1004,7 +1008,7 @@ function ResultsTab({
       model_reserve?: number;
       greeks?: Record<
         string,
-        { values: Record<string, number>; spread: number }
+        { values: Record<string, number | null>; spread: number }
       >;
     };
 
@@ -1058,7 +1062,9 @@ function ResultsTab({
                           key={r.model_id}
                           className="text-right py-1.5 px-3 font-mono text-xs text-enterprise-600"
                         >
-                          {(gdata.values[r.model_id] ?? 0).toFixed(6)}
+                          {gdata.values[r.model_id] != null
+                            ? gdata.values[r.model_id]!.toFixed(6)
+                            : <span className="text-enterprise-300 italic">N/A</span>}
                         </td>
                       ))}
                     </tr>
@@ -1193,7 +1199,7 @@ function ResultsTab({
               </div>
             ))}
           </div>
-          {diag.verdict && (
+          {!!diag.verdict && (
             <div
               className={cn(
                 'mt-3 p-2 rounded-lg text-sm font-medium',

@@ -295,6 +295,69 @@ class Day1PnLWithRedFlags(Day1PnLWithSchedule):
     red_flag_report: Optional[RedFlagReport] = None
 
 
+# ── Day 1 P&L Classification ────────────────────────────────────
+class Day1PnLClassification(str, Enum):
+    SUSPICIOUS = "SUSPICIOUS"
+    NORMAL = "NORMAL"
+    IDEAL = "IDEAL"
+
+
+class AmortizationMethod(str, Enum):
+    STRAIGHT_LINE = "STRAIGHT_LINE"
+    FV_CONVERGENCE = "FV_CONVERGENCE"
+    ACCELERATED_RELEASE = "ACCELERATED_RELEASE"
+
+
+class AccountingEntry(BaseModel):
+    """Double-entry accounting journal entry for Day 1 P&L reserve."""
+    entry_id: str
+    entry_date: date
+    description: str
+    debit_account: str
+    credit_account: str
+    amount: Decimal
+    position_id: int
+    entry_type: str  # RESERVE_CREATION, AMORTIZATION, EXPIRY_RELEASE
+
+
+class Day1PnLReserve(BaseModel):
+    """Day 1 P&L reserve with classification, amortization, and accounting."""
+    position_id: int
+    trade_id: str
+    transaction_price: Decimal
+    fair_value: Decimal
+    day1_pnl: Decimal
+    day1_pnl_pct: Decimal
+    classification: Day1PnLClassification
+    classification_reason: str
+    recognition_status: str  # RECOGNIZED or DEFERRED
+    recognized_amount: Decimal
+    deferred_amount: Decimal
+    reserve_balance: Decimal
+    trade_date: Optional[date] = None
+    maturity_date: Optional[date] = None
+    amortization_method: AmortizationMethod = AmortizationMethod.STRAIGHT_LINE
+    amortization_schedule: list[AmortizationEntry] = []
+    accounting_entries: list[AccountingEntry] = []
+    red_flag_report: Optional[RedFlagReport] = None
+    is_expired: bool = False
+    released_on_expiry: bool = False
+
+
+class Day1PnLPortfolioSummary(BaseModel):
+    """Portfolio-level Day 1 P&L summary."""
+    total_positions: int
+    total_day1_pnl: Decimal
+    total_deferred: Decimal
+    total_recognized: Decimal
+    total_reserve_balance: Decimal
+    suspicious_count: int
+    normal_count: int
+    ideal_count: int
+    positions: list[Day1PnLReserve]
+    accounting_entries: list[AccountingEntry] = []
+
+
 # ── Reserve summary ──────────────────────────────────────────────
 class ReserveOut(BaseModel):
     reserve_id: int

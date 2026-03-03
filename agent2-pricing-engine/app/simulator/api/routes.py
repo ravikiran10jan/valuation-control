@@ -151,10 +151,12 @@ async def compare(req: SimulatorCompareRequest) -> SimulatorCompareResponse:
             greek_names.update(g.keys())
         greek_comparison = {}
         for gn in greek_names:
-            vals = {mid: gs.get(gn, 0) for mid, gs in all_greeks.items()}
+            vals = {mid: gs.get(gn) for mid, gs in all_greeks.items()}
+            numeric_vals = [v for v in vals.values() if v is not None]
+            spread = round(max(numeric_vals) - min(numeric_vals), 6) if len(numeric_vals) >= 2 else 0.0
             greek_comparison[gn] = {
                 "values": vals,
-                "spread": round(max(vals.values()) - min(vals.values()), 6),
+                "spread": spread,
             }
         comparison["greeks"] = greek_comparison
 

@@ -13,6 +13,8 @@ import { FVHierarchyView } from './components/hierarchy/FVHierarchyView';
 import { ValidationDashboard } from './components/validation/ValidationDashboard';
 import { SimulatorPage } from './components/simulator/SimulatorPage';
 import { ApplicabilityPage } from './components/simulator/ApplicabilityPage';
+import { Day1PnLDashboard } from './components/day1pnl/Day1PnLDashboard';
+import { SettingsPage } from './components/settings/SettingsPage';
 import { AlertsProvider } from './hooks/useAlerts';
 
 export default function App() {
@@ -33,6 +35,8 @@ export default function App() {
           <Route path="validation" element={<ValidationDashboard />} />
           <Route path="simulator" element={<SimulatorPage />} />
           <Route path="applicability" element={<ApplicabilityPage />} />
+          <Route path="day1-pnl" element={<Day1PnLDashboard />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </AlertsProvider>

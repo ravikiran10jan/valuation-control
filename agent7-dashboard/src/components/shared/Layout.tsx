@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   FlaskConical,
   Grid3X3,
+  BookOpen,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Analyst Workbench', href: '/workbench', icon: ListChecks },
   { name: 'Exceptions', href: '/exceptions', icon: AlertTriangle },
   { name: 'Reserves', href: '/reserves', icon: DollarSign },
+  { name: 'Day 1 P&L', href: '/day1-pnl', icon: BookOpen },
   { name: 'Capital Adequacy', href: '/capital', icon: Landmark },
   { name: 'FV Hierarchy', href: '/hierarchy', icon: Layers },
   { name: 'Validation', href: '/validation', icon: ShieldCheck },
@@ -42,12 +44,14 @@ const pageNames: Record<string, string> = {
   '/workbench': 'Analyst Workbench',
   '/exceptions': 'Exceptions',
   '/reserves': 'Reserve Waterfall',
+  '/day1-pnl': 'Day 1 P&L Dashboard',
   '/capital': 'Capital Adequacy',
   '/hierarchy': 'Fair Value Hierarchy',
   '/validation': 'Validation Dashboard',
   '/simulator': 'Pricing Simulator',
   '/applicability': 'Model Applicability Matrix',
   '/reports': 'Reports',
+  '/settings': 'Settings',
 };
 
 export function Layout() {
@@ -112,15 +116,18 @@ export function Layout() {
 
         {/* Settings */}
         <div className="p-3 border-t border-enterprise-200">
-          <button
+          <NavLink
+            to="/settings"
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full',
-              'text-enterprise-600 hover:bg-enterprise-100 hover:text-enterprise-800'
+              location.pathname === '/settings'
+                ? 'bg-primary-50 text-primary-700 font-medium border border-primary-200'
+                : 'text-enterprise-600 hover:bg-enterprise-100 hover:text-enterprise-800'
             )}
           >
-            <Settings size={20} />
+            <Settings size={20} className={location.pathname === '/settings' ? 'text-primary-600' : ''} />
             {sidebarOpen && <span>Settings</span>}
-          </button>
+          </NavLink>
         </div>
       </aside>
 
