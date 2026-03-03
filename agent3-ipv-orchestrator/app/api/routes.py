@@ -187,6 +187,7 @@ async def start_ipv_run_async(
     asyncio.create_task(_run_pipeline())
 
     return {
+        "run_id": run_id,
         "message": "IPV run started asynchronously",
         "instructions": "Monitor progress via WebSocket at /ipv/ws or poll /ipv/runs",
     }

@@ -16,7 +16,7 @@ async def get_client() -> httpx.AsyncClient:
     """Get or create the shared httpx client."""
     global _client
     if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=30.0)
+        _client = httpx.AsyncClient(timeout=120.0)
     return _client
 
 

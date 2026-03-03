@@ -84,17 +84,28 @@ async def generate_report(
         "fry14q": gen.generate_fry14q,
     }
 
-    if report_id not in generator_map:
-        raise HTTPException(status_code=404, detail=f"Unknown report type: {report_id}")
-
     rd = reporting_date or datetime.utcnow().strftime("%Y-%m-%d")
 
-    # Try Agent 6 first, fall back to synthetic
-    try:
-        return await agent6_post(f"/reports/{report_id}", json={"reporting_date": rd})
-    except Exception:
-        log.info("agent6_unavailable_fallback", report_id=report_id)
-        return generator_map[report_id](rd)
+    # Regulatory reports — try Agent 6 first, fall back to synthetic
+    if report_id in generator_map:
+        try:
+            return await agent6_post(f"/reports/{report_id}", json={"reporting_date": rd})
+        except Exception:
+            log.info("agent6_unavailable_fallback", report_id=report_id)
+            return generator_map[report_id](rd)
+
+    # Non-regulatory reports — generate via data export pipeline
+    known_reports = {"daily_fx_valuation", "exception_summary", "reserve_summary"}
+    if report_id not in known_reports:
+        raise HTTPException(status_code=404, detail=f"Unknown report type: {report_id}")
+
+    return {
+        "status": "queued",
+        "report_id": report_id,
+        "reporting_date": rd,
+        "download_url": f"/api/export/{report_id}/download",
+        "message": f"Report '{report_id}' generation queued. Download will be available shortly.",
+    }
 
 
 # ── Pillar 3 (Basel III) ────────────────────────────────────────

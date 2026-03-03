@@ -7,6 +7,7 @@ Capital Adequacy, FV Hierarchy, and Validation views.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
@@ -82,11 +83,10 @@ async def trigger_ipv_run(
     body: dict = {
         "run_type": "FULL",
         "triggered_by": "dashboard_user",
+        "valuation_date": run_date or date.today().isoformat(),
     }
-    if run_date:
-        body["valuation_date"] = run_date
     try:
-        return await agent3_post("/ipv/runs", json=body)
+        return await agent3_post("/ipv/runs/async", json=body)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to trigger IPV run: {exc}")
 
