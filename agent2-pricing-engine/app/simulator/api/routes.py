@@ -86,22 +86,26 @@ async def calculate(req: SimulatorCalculateRequest) -> SimulatorCalculateRespons
 
 @router.post("/compare", response_model=SimulatorCompareResponse)
 async def compare(req: SimulatorCompareRequest) -> SimulatorCompareResponse:
-    """Run the same parameters through multiple models and compare."""
+    """Run the same parameters through multiple models and compare.
+
+    Resilient: if one model fails, others still return with partial results.
+    """
     results = []
+    errors: dict[str, str] = {}
+
     for mid in req.model_ids:
         try:
             model = ModelRegistry.get_model(mid)
-        except KeyError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+        except KeyError:
+            errors[mid] = f"Model '{mid}' not found"
+            continue
 
         try:
             merged = model.params_with_defaults(req.parameters)
             result = model.calculate(merged)
         except Exception as e:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Calculation failed for {mid}: {e}",
-            )
+            errors[mid] = f"Calculation failed: {e}"
+            continue
 
         results.append(SimulatorCalculateResponse(
             model_id=model.model_id,
@@ -123,6 +127,10 @@ async def compare(req: SimulatorCompareRequest) -> SimulatorCompareResponse:
             diagnostics=result.diagnostics,
         ))
 
+    if not results:
+        detail = "; ".join(f"{mid}: {msg}" for mid, msg in errors.items())
+        raise HTTPException(status_code=422, detail=detail or "No models produced results")
+
     # Build comparison summary
     prices = {r.model_id: r.fair_value for r in results}
     price_values = list(prices.values())
@@ -132,6 +140,8 @@ async def compare(req: SimulatorCompareRequest) -> SimulatorCompareResponse:
         "min_price": min(price_values),
         "model_reserve": round(max(price_values) - min(price_values), 4),
     }
+    if errors:
+        comparison["errors"] = errors
 
     # Greek comparison
     all_greeks = {r.model_id: r.greeks for r in results if r.greeks}

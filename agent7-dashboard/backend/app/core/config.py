@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Upstream service URLs
-    agent1_url: str = "http://localhost:8001"
+    agent1_url: str = "http://localhost:8000"
     agent2_url: str = "http://localhost:8002"
     agent3_url: str = "http://localhost:8003"
     agent4_url: str = "http://localhost:8004"

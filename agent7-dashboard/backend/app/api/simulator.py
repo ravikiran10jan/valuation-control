@@ -95,7 +95,10 @@ async def compare(req: CompareRequest) -> dict[str, Any]:
     try:
         return await agent2_post("/simulator/compare", json=req.model_dump())
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Comparison failed: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Comparison failed — pricing engine may be unavailable: {exc}",
+        )
 
 
 # ── Sensitivity ─────────────────────────────────────────────────
