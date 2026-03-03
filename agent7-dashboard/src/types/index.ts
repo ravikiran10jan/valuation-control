@@ -669,6 +669,7 @@ export interface IPVLatestResult {
   total_ava: number;
   total_model_reserve: number;
   total_day1_deferred: number;
+  ava_breakdown?: AVABreakdown;
   ipv_runs: IPVRun[];
   exception_summary: ExceptionSummary;
 }

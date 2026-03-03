@@ -17,6 +17,7 @@ import {
   FlaskConical,
   Grid3X3,
   BookOpen,
+  ClipboardList,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -26,6 +27,7 @@ import { AlertPanel } from '../alerts/AlertPanel';
 const navigation = [
   { name: 'Executive Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'IPV Runs', href: '/ipv', icon: Activity },
+  { name: 'Positions', href: '/positions', icon: ClipboardList },
   { name: 'Analyst Workbench', href: '/workbench', icon: ListChecks },
   { name: 'Exceptions', href: '/exceptions', icon: AlertTriangle },
   { name: 'Reserves', href: '/reserves', icon: DollarSign },
@@ -41,6 +43,7 @@ const navigation = [
 const pageNames: Record<string, string> = {
   '/': 'Executive Dashboard',
   '/ipv': 'IPV Run Dashboard',
+  '/positions': 'Positions',
   '/workbench': 'Analyst Workbench',
   '/exceptions': 'Exceptions',
   '/reserves': 'Reserve Waterfall',

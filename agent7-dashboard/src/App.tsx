@@ -4,6 +4,7 @@ import { ExecutiveDashboard } from './components/dashboard/ExecutiveDashboard';
 import { AnalystWorkbench } from './components/workbench/AnalystWorkbench';
 import { ExceptionDashboard } from './components/exceptions/ExceptionDashboard';
 import { PositionDetail } from './components/positions/PositionDetail';
+import { PositionsPage } from './components/positions/PositionsPage';
 import { ReportingPortal } from './components/reports/ReportingPortal';
 import { IPVRunDashboard } from './components/ipv/IPVRunDashboard';
 import { PositionDeepDive } from './components/ipv/PositionDeepDive';
@@ -25,6 +26,7 @@ export default function App() {
           <Route index element={<ExecutiveDashboard />} />
           <Route path="workbench" element={<AnalystWorkbench />} />
           <Route path="exceptions" element={<ExceptionDashboard />} />
+          <Route path="positions" element={<PositionsPage />} />
           <Route path="positions/:positionId" element={<PositionDetail />} />
           <Route path="reports" element={<ReportingPortal />} />
           <Route path="ipv" element={<IPVRunDashboard />} />

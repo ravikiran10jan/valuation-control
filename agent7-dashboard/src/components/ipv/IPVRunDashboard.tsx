@@ -50,6 +50,16 @@ const fallbackLatest: IPVLatestResult = {
   total_ava: 125000000,
   total_model_reserve: 18500000,
   total_day1_deferred: 8200000,
+  ava_breakdown: {
+    market_price_uncertainty: 42500000,
+    close_out_costs: 25000000,
+    model_risk: 22500000,
+    unearned_credit_spreads: 12500000,
+    investment_funding: 10000000,
+    concentrated_positions: 7500000,
+    future_admin_costs: 5000000,
+    total: 125000000,
+  },
   ipv_runs: [
     {
       run_id: 'IPV-2025-0214-001',
@@ -130,6 +140,16 @@ const fallbackLatest: IPVLatestResult = {
 };
 
 const RAG_COLORS = { green: '#10b981', amber: '#f59e0b', red: '#ef4444' };
+const AVA_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#94a3b8'];
+const AVA_LABELS: Record<string, string> = {
+  market_price_uncertainty: 'Market Price Uncertainty',
+  close_out_costs: 'Close-Out Costs',
+  model_risk: 'Model Risk',
+  unearned_credit_spreads: 'Unearned Credit Spreads',
+  investment_funding: 'Investment & Funding',
+  concentrated_positions: 'Concentrated Positions',
+  future_admin_costs: 'Future Admin Costs',
+};
 
 function StepStatusIcon({ status }: { status: IPVStepResult['status'] }) {
   switch (status) {
@@ -234,6 +254,19 @@ export function IPVRunDashboard() {
     { name: 'Model Reserve', value: data.total_model_reserve },
     { name: 'Day1 Deferred', value: data.total_day1_deferred },
   ];
+
+  const avaBreakdown = data.ava_breakdown;
+  const avaData = avaBreakdown
+    ? Object.entries(avaBreakdown)
+        .filter(([key]) => key !== 'total')
+        .map(([key, value]) => ({
+          name: AVA_LABELS[key] || key,
+          value: value as number,
+          key,
+        }))
+    : [];
+
+  const avaTotalFromBreakdown = avaBreakdown?.total ?? data.total_ava;
 
   const handleTriggerRun = async () => {
     setTriggerLoading(true);
@@ -501,6 +534,91 @@ export function IPVRunDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* AVA Breakdown */}
+      {avaData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card title="Additional Valuation Adjustments (AVA) — Basel III Art. 105">
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={avaData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis
+                      type="number"
+                      stroke="#64748b"
+                      tick={{ fontSize: 11, fill: '#64748b' }}
+                      tickFormatter={(val) => formatCurrency(val, true)}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      stroke="#64748b"
+                      tick={{ fontSize: 11, fill: '#64748b' }}
+                      width={160}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      }}
+                      formatter={(value: number) => formatCurrency(value)}
+                    />
+                    <Bar dataKey="value" name="AVA Amount" radius={[0, 4, 4, 0]}>
+                      {avaData.map((_entry, idx) => (
+                        <Cell key={`ava-${idx}`} fill={AVA_COLORS[idx % AVA_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+
+          <Card title="AVA Category Detail">
+            <div className="space-y-3">
+              {avaData.map((item, idx) => {
+                const pct = avaTotalFromBreakdown > 0
+                  ? (item.value / avaTotalFromBreakdown) * 100
+                  : 0;
+                return (
+                  <div key={item.key} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: AVA_COLORS[idx % AVA_COLORS.length] }}
+                        />
+                        <span className="text-enterprise-700">{item.name}</span>
+                      </div>
+                      <span className="font-mono text-enterprise-600 text-xs">
+                        {formatCurrency(item.value, true)} ({pct.toFixed(0)}%)
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-enterprise-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${pct}%`,
+                          backgroundColor: AVA_COLORS[idx % AVA_COLORS.length],
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="pt-2 mt-2 border-t border-enterprise-200 flex items-center justify-between">
+                <span className="text-sm font-semibold text-enterprise-800">Total AVA</span>
+                <span className="font-mono font-semibold text-enterprise-800">
+                  {formatCurrency(avaTotalFromBreakdown, true)}
+                </span>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Historical Runs */}
       <Card title="Historical IPV Runs">

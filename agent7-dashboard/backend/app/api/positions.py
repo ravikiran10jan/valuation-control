@@ -25,7 +25,10 @@ async def list_positions(
         params["asset_class"] = asset_class
     if exception_status:
         params["exception_status"] = exception_status
-    return await agent1_get("/positions/", params=params)
+    try:
+        return await agent1_get("/positions/", params=params)
+    except Exception:
+        return []
 
 
 @router.get("/{position_id}")

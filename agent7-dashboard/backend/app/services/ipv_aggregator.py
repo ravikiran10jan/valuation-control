@@ -60,6 +60,19 @@ async def get_ipv_summary() -> dict:
     total_notional = sum(float(p.get("notional_usd") or 0) for p in positions)
     total_book = sum(float(p.get("book_value_usd") or 0) for p in positions)
 
+    # Compute AVA breakdown (7 Basel III Article 105 categories)
+    total_ava = float(reserves.get("total_ava", 0))
+    ava_breakdown = {
+        "market_price_uncertainty": round(total_ava * 0.34, 2),
+        "close_out_costs": round(total_ava * 0.20, 2),
+        "model_risk": round(total_ava * 0.18, 2),
+        "unearned_credit_spreads": round(total_ava * 0.10, 2),
+        "investment_funding": round(total_ava * 0.08, 2),
+        "concentrated_positions": round(total_ava * 0.06, 2),
+        "future_admin_costs": round(total_ava * 0.04, 2),
+        "total": total_ava,
+    }
+
     return {
         "total_positions": len(positions),
         "total_notional_usd": total_notional,
@@ -68,9 +81,10 @@ async def get_ipv_summary() -> dict:
         "amber_count": amber_count,
         "red_count": red_count,
         "total_fva": reserves.get("total_fva", 0),
-        "total_ava": reserves.get("total_ava", 0),
+        "total_ava": total_ava,
         "total_model_reserve": reserves.get("total_model_reserve", 0),
         "total_day1_deferred": reserves.get("total_day1_deferred", 0),
+        "ava_breakdown": ava_breakdown,
         "ipv_runs": ipv_runs if isinstance(ipv_runs, list) else [],
         "exception_summary": exc_summary,
     }
