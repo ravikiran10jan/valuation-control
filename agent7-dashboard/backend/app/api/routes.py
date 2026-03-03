@@ -72,17 +72,21 @@ async def trigger_ipv_run(
 ):
     """Trigger a new IPV run via Agent 3.
 
+    Proxies to Agent 3 POST /ipv/runs which accepts an IPVRunRequest body
+    with valuation_date, run_type, triggered_by, etc.
+
     Args:
         asset_class: Optional filter — only run IPV for this asset class.
         run_date: Optional valuation date override (ISO format).
     """
-    body: dict = {}
-    if asset_class:
-        body["asset_class"] = asset_class
+    body: dict = {
+        "run_type": "FULL",
+        "triggered_by": "dashboard_user",
+    }
     if run_date:
-        body["run_date"] = run_date
+        body["valuation_date"] = run_date
     try:
-        return await agent3_post("/ipv/trigger", json=body)
+        return await agent3_post("/ipv/runs", json=body)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to trigger IPV run: {exc}")
 
