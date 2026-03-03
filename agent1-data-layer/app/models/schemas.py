@@ -93,6 +93,59 @@ class RatesSwapDetailOut(RatesSwapDetailCreate):
     model_config = {"from_attributes": True}
 
 
+# ── Commodity detail schemas ───────────────────────────────────────
+class CommodityDetailCreate(BaseModel):
+    commodity: Optional[str] = None
+    contract_unit: Optional[str] = None
+    fixed_price: Optional[Decimal] = None
+    float_index: Optional[str] = None
+    settlement_type: Optional[str] = None
+    delivery_point: Optional[str] = None
+
+
+class CommodityDetailOut(CommodityDetailCreate):
+    position_id: int
+
+    model_config = {"from_attributes": True}
+
+
+# ── Structured product detail schemas ──────────────────────────────
+class StructuredProductDetailCreate(BaseModel):
+    tranche: Optional[str] = None
+    attachment_pct: Optional[Decimal] = None
+    detachment_pct: Optional[Decimal] = None
+    pool_size: Optional[int] = None
+    wac: Optional[Decimal] = None
+    wam: Optional[Decimal] = None
+    credit_rating: Optional[str] = None
+    collateral_type: Optional[str] = None
+
+
+class StructuredProductDetailOut(StructuredProductDetailCreate):
+    position_id: int
+
+    model_config = {"from_attributes": True}
+
+
+# ── Bond detail schemas ────────────────────────────────────────────
+class BondDetailCreate(BaseModel):
+    issuer: Optional[str] = None
+    coupon_rate: Optional[Decimal] = None
+    coupon_frequency: Optional[str] = None
+    credit_rating: Optional[str] = None
+    yield_to_maturity: Optional[Decimal] = None
+    duration: Optional[Decimal] = None
+    convexity: Optional[Decimal] = None
+    contract_size: Optional[Decimal] = None
+    futures_ticker: Optional[str] = None
+
+
+class BondDetailOut(BondDetailCreate):
+    position_id: int
+
+    model_config = {"from_attributes": True}
+
+
 # ── Market data snapshot schemas ─────────────────────────────────
 class MarketDataSnapshotCreate(BaseModel):
     valuation_date: date

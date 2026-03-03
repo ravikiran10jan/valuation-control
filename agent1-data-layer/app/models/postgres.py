@@ -66,6 +66,15 @@ class Position(Base):
     equity_detail: Mapped[Optional[EquityDetail]] = relationship(
         back_populates="position", uselist=False, cascade="all, delete-orphan"
     )
+    commodity_detail: Mapped[Optional[CommodityDetail]] = relationship(
+        back_populates="position", uselist=False, cascade="all, delete-orphan"
+    )
+    structured_product_detail: Mapped[Optional[StructuredProductDetail]] = relationship(
+        back_populates="position", uselist=False, cascade="all, delete-orphan"
+    )
+    bond_detail: Mapped[Optional[BondDetail]] = relationship(
+        back_populates="position", uselist=False, cascade="all, delete-orphan"
+    )
     dealer_quotes: Mapped[List[DealerQuote]] = relationship(
         back_populates="position", cascade="all, delete-orphan"
     )
@@ -145,6 +154,59 @@ class EquityDetail(Base):
     option_type: Mapped[Optional[str]] = mapped_column(String(10))  # Call, Put
 
     position: Mapped[Position] = relationship(back_populates="equity_detail")
+
+
+class CommodityDetail(Base):
+    __tablename__ = "commodity_details"
+
+    position_id: Mapped[int] = mapped_column(
+        ForeignKey("positions.position_id"), primary_key=True
+    )
+    commodity: Mapped[Optional[str]] = mapped_column(String(30))  # WTI, Brent, Gold, NatGas
+    contract_unit: Mapped[Optional[str]] = mapped_column(String(20))  # bbl, MMBtu, oz
+    fixed_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    float_index: Mapped[Optional[str]] = mapped_column(String(30))  # ICE Brent, NYMEX WTI
+    settlement_type: Mapped[Optional[str]] = mapped_column(String(10))  # Cash, Physical
+    delivery_point: Mapped[Optional[str]] = mapped_column(String(50))
+
+    position: Mapped[Position] = relationship(back_populates="commodity_detail")
+
+
+class StructuredProductDetail(Base):
+    __tablename__ = "structured_product_details"
+
+    position_id: Mapped[int] = mapped_column(
+        ForeignKey("positions.position_id"), primary_key=True
+    )
+    tranche: Mapped[Optional[str]] = mapped_column(String(20))  # Senior, Mezzanine, Equity
+    attachment_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(7, 4))
+    detachment_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(7, 4))
+    pool_size: Mapped[Optional[int]] = mapped_column(Integer)
+    wac: Mapped[Optional[Decimal]] = mapped_column(Numeric(7, 4))  # Weighted avg coupon
+    wam: Mapped[Optional[Decimal]] = mapped_column(Numeric(7, 2))  # Weighted avg maturity (years)
+    credit_rating: Mapped[Optional[str]] = mapped_column(String(10))  # AAA, AA, BBB, etc.
+    collateral_type: Mapped[Optional[str]] = mapped_column(String(50))
+
+    position: Mapped[Position] = relationship(back_populates="structured_product_detail")
+
+
+class BondDetail(Base):
+    __tablename__ = "bond_details"
+
+    position_id: Mapped[int] = mapped_column(
+        ForeignKey("positions.position_id"), primary_key=True
+    )
+    issuer: Mapped[Optional[str]] = mapped_column(String(100))
+    coupon_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(7, 4))
+    coupon_frequency: Mapped[Optional[str]] = mapped_column(String(10))  # Semi, Annual, Quarterly
+    credit_rating: Mapped[Optional[str]] = mapped_column(String(10))
+    yield_to_maturity: Mapped[Optional[Decimal]] = mapped_column(Numeric(7, 4))
+    duration: Mapped[Optional[Decimal]] = mapped_column(Numeric(7, 3))  # Modified duration
+    convexity: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4))
+    contract_size: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    futures_ticker: Mapped[Optional[str]] = mapped_column(String(20))
+
+    position: Mapped[Position] = relationship(back_populates="bond_detail")
 
 
 # ── Market data snapshot ──────────────────────────────────────────

@@ -12,6 +12,11 @@ from app.core.logging import setup_logging, log
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    # Create all PostgreSQL tables (including new detail tables)
+    from app.core.database import engine, Base
+    import app.models.postgres  # noqa: F401 — ensure all models are registered
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     # Try to ensure MongoDB indexes, but don't fail if unavailable
     try:
         from app.models.mongo import ensure_indexes
