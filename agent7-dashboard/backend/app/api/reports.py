@@ -77,24 +77,39 @@ async def generate_report(
     reporting_date: Optional[str] = Query(None),
 ) -> dict[str, Any]:
     """Generate a report by type, routing to the appropriate handler."""
-    generator_map = {
+    regulatory_generators = {
         "pillar3": gen.generate_pillar3,
         "ifrs13": gen.generate_ifrs13,
         "pra110": gen.generate_pra110,
         "fry14q": gen.generate_fry14q,
     }
 
-    if report_id not in generator_map:
-        raise HTTPException(status_code=404, detail=f"Unknown report type: {report_id}")
+    # Non-regulatory reports map to CSV export types
+    export_map = {
+        "daily_fx_valuation": "positions",
+        "exception_summary": "exceptions",
+        "reserve_summary": "reserves",
+    }
 
     rd = reporting_date or datetime.utcnow().strftime("%Y-%m-%d")
 
-    # Try Agent 6 first, fall back to synthetic
-    try:
-        return await agent6_post(f"/reports/{report_id}", json={"reporting_date": rd})
-    except Exception:
-        log.info("agent6_unavailable_fallback", report_id=report_id)
-        return generator_map[report_id](rd)
+    if report_id in regulatory_generators:
+        try:
+            return await agent6_post(f"/reports/{report_id}", json={"reporting_date": rd})
+        except Exception:
+            log.info("agent6_unavailable_fallback", report_id=report_id)
+            return regulatory_generators[report_id](rd)
+
+    if report_id in export_map:
+        export_type = export_map[report_id]
+        return {
+            "status": "ready",
+            "export_type": export_type,
+            "download_url": f"/api/export/{export_type}/download",
+            "message": f"{report_id} report ready for download.",
+        }
+
+    raise HTTPException(status_code=404, detail=f"Unknown report type: {report_id}")
 
 
 # ── Pillar 3 (Basel III) ────────────────────────────────────────
