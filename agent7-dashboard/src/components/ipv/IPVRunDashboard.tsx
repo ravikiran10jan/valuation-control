@@ -209,6 +209,8 @@ function StepProgressTracker({ steps }: { steps: IPVStepResult[] }) {
 
 export function IPVRunDashboard() {
   const [triggerLoading, setTriggerLoading] = useState(false);
+  const [triggerError, setTriggerError] = useState<string | null>(null);
+  const [triggerSuccess, setTriggerSuccess] = useState(false);
   const [selectedRun, setSelectedRun] = useState<IPVRun | null>(null);
 
   const { data: latestData, error, refetch } = useApi(
@@ -235,11 +237,15 @@ export function IPVRunDashboard() {
 
   const handleTriggerRun = async () => {
     setTriggerLoading(true);
+    setTriggerError(null);
+    setTriggerSuccess(false);
     try {
       await api.triggerIPVRun();
+      setTriggerSuccess(true);
       refetch();
-    } catch {
-      // Error handled by UI
+      setTimeout(() => setTriggerSuccess(false), 5000);
+    } catch (e) {
+      setTriggerError(e instanceof Error ? e.message : 'Failed to trigger IPV run');
     } finally {
       setTriggerLoading(false);
     }
@@ -290,6 +296,18 @@ export function IPVRunDashboard() {
           </Button>
         </div>
       </div>
+
+      {triggerError && (
+        <div className="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200 flex items-center justify-between">
+          <span>{triggerError}</span>
+          <button onClick={() => setTriggerError(null)} className="text-red-400 hover:text-red-600 ml-4">&times;</button>
+        </div>
+      )}
+      {triggerSuccess && (
+        <div className="px-4 py-3 rounded-lg bg-green-50 text-green-700 text-sm border border-green-200">
+          IPV run triggered successfully. Results will appear below once complete.
+        </div>
+      )}
 
       {/* KPI Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
