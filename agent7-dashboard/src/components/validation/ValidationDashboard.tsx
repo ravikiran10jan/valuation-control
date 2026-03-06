@@ -376,8 +376,8 @@ export function ValidationDashboard() {
         />
         <KPICard
           title="Pass Rate"
-          value={`${report.total_checks > 0 ? ((report.passed / report.total_checks) * 100).toFixed(1) : 0}%`}
-          color={report.passed / report.total_checks > 0.9 ? 'green' : 'amber'}
+          value={`${Number(report.total_checks) > 0 ? ((Number(report.passed) / Number(report.total_checks)) * 100).toFixed(1) : 0}%`}
+          color={Number(report.passed) / Number(report.total_checks) > 0.9 ? 'green' : 'amber'}
           icon={<Target size={20} className="text-blue-500" />}
         />
       </div>

@@ -51,7 +51,20 @@ export function PositionsPage() {
     fallbackPositions
   );
 
-  const data = positions ?? fallbackPositions;
+  const raw = positions ?? fallbackPositions;
+
+  // Backend returns Decimal fields as strings — coerce to numbers
+  const data = raw.map((p) => ({
+    ...p,
+    notional: Number(p.notional) || 0,
+    notional_usd: Number(p.notional_usd) || 0,
+    desk_mark: Number(p.desk_mark) || 0,
+    vc_fair_value: Number(p.vc_fair_value) || 0,
+    book_value_usd: Number(p.book_value_usd) || 0,
+    difference: Number(p.difference) || 0,
+    difference_pct: Number(p.difference_pct) || 0,
+    fva_usd: Number(p.fva_usd) || 0,
+  }));
 
   const greenCount = data.filter((p) => p.exception_status === 'GREEN' || !p.exception_status).length;
   const amberCount = data.filter((p) => p.exception_status === 'AMBER').length;

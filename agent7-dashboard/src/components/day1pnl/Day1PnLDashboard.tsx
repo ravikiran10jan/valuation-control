@@ -525,7 +525,7 @@ export function Day1PnLDashboard() {
                           {formatCurrency(pos.day1_pnl)}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-enterprise-600">
-                          {pos.day1_pnl_pct.toFixed(1)}%
+                          {Number(pos.day1_pnl_pct).toFixed(1)}%
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
@@ -605,7 +605,7 @@ export function Day1PnLDashboard() {
                   <div className="p-3 rounded-lg bg-enterprise-50">
                     <div className="text-xs text-enterprise-500">Day 1 P&L</div>
                     <div className={`font-mono font-medium ${selectedPosition.day1_pnl > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(selectedPosition.day1_pnl)} ({selectedPosition.day1_pnl_pct.toFixed(1)}%)
+                      {formatCurrency(selectedPosition.day1_pnl)} ({Number(selectedPosition.day1_pnl_pct).toFixed(1)}%)
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-enterprise-50">
@@ -819,7 +819,7 @@ export function Day1PnLDashboard() {
               >
                 <div className="space-y-3">
                   <div className="flex items-center gap-6 text-sm text-enterprise-600">
-                    <span>Day 1 P&L: <span className="font-mono font-medium text-enterprise-800">{formatCurrency(pos.day1_pnl)}</span> ({pos.day1_pnl_pct.toFixed(1)}%)</span>
+                    <span>Day 1 P&L: <span className="font-mono font-medium text-enterprise-800">{formatCurrency(pos.day1_pnl)}</span> ({Number(pos.day1_pnl_pct).toFixed(1)}%)</span>
                     <span>Reserve: <span className="font-mono font-medium text-purple-600">{formatCurrency(pos.reserve_balance)}</span></span>
                   </div>
 

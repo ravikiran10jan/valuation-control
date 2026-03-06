@@ -203,7 +203,7 @@ export function ReserveWaterfall() {
             </div>
             <div className="mt-4 space-y-2">
               {waterfallData.slice(0, 4).map((item) => {
-                const pct = totals.grand_total > 0 ? (item.value / totals.grand_total * 100).toFixed(1) : '0';
+                const pct = totals.grand_total > 0 ? (Number(item.value) / Number(totals.grand_total) * 100).toFixed(1) : '0';
                 return (
                   <div key={item.name} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">

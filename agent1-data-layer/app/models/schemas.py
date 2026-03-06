@@ -15,20 +15,20 @@ class PositionBase(BaseModel):
     product_type: Optional[str] = None
     asset_class: Optional[str] = None
     currency_pair: Optional[str] = None
-    notional: Optional[Decimal] = None
-    notional_usd: Optional[Decimal] = None
+    notional: Optional[float] = None
+    notional_usd: Optional[float] = None
     currency: Optional[str] = Field(None, max_length=3)
     trade_date: Optional[date] = None
     maturity_date: Optional[date] = None
     settlement_date: Optional[date] = None
     counterparty: Optional[str] = None
-    desk_mark: Optional[Decimal] = None
-    vc_fair_value: Optional[Decimal] = None
-    book_value_usd: Optional[Decimal] = None
+    desk_mark: Optional[float] = None
+    vc_fair_value: Optional[float] = None
+    book_value_usd: Optional[float] = None
     valuation_date: Optional[date] = None
     fair_value_level: Optional[str] = None
     pricing_source: Optional[str] = None
-    fva_usd: Optional[Decimal] = None
+    fva_usd: Optional[float] = None
 
 
 class PositionCreate(PositionBase):
@@ -46,8 +46,8 @@ class PositionUpdate(BaseModel):
 
 class PositionOut(PositionBase):
     position_id: int
-    difference: Optional[Decimal] = None
-    difference_pct: Optional[Decimal] = None
+    difference: Optional[float] = None
+    difference_pct: Optional[float] = None
     exception_status: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -71,8 +71,20 @@ class FXBarrierDetailCreate(BaseModel):
     premium_model: Optional[Decimal] = None
 
 
-class FXBarrierDetailOut(FXBarrierDetailCreate):
+class FXBarrierDetailOut(BaseModel):
     position_id: int
+    currency_pair: Optional[str] = None
+    spot_ref: Optional[float] = None
+    lower_barrier: Optional[float] = None
+    upper_barrier: Optional[float] = None
+    barrier_type: Optional[str] = None
+    volatility: Optional[float] = None
+    time_to_expiry: Optional[float] = None
+    domestic_rate: Optional[float] = None
+    foreign_rate: Optional[float] = None
+    survival_probability: Optional[float] = None
+    premium_market: Optional[float] = None
+    premium_model: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -87,8 +99,14 @@ class RatesSwapDetailCreate(BaseModel):
     discount_curve: Optional[str] = None
 
 
-class RatesSwapDetailOut(RatesSwapDetailCreate):
+class RatesSwapDetailOut(BaseModel):
     position_id: int
+    fixed_rate: Optional[float] = None
+    float_index: Optional[str] = None
+    pay_frequency: Optional[str] = None
+    receive_frequency: Optional[str] = None
+    day_count_convention: Optional[str] = None
+    discount_curve: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -103,8 +121,14 @@ class CommodityDetailCreate(BaseModel):
     delivery_point: Optional[str] = None
 
 
-class CommodityDetailOut(CommodityDetailCreate):
+class CommodityDetailOut(BaseModel):
     position_id: int
+    commodity: Optional[str] = None
+    contract_unit: Optional[str] = None
+    fixed_price: Optional[float] = None
+    float_index: Optional[str] = None
+    settlement_type: Optional[str] = None
+    delivery_point: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -121,8 +145,16 @@ class StructuredProductDetailCreate(BaseModel):
     collateral_type: Optional[str] = None
 
 
-class StructuredProductDetailOut(StructuredProductDetailCreate):
+class StructuredProductDetailOut(BaseModel):
     position_id: int
+    tranche: Optional[str] = None
+    attachment_pct: Optional[float] = None
+    detachment_pct: Optional[float] = None
+    pool_size: Optional[int] = None
+    wac: Optional[float] = None
+    wam: Optional[float] = None
+    credit_rating: Optional[str] = None
+    collateral_type: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -140,8 +172,17 @@ class BondDetailCreate(BaseModel):
     futures_ticker: Optional[str] = None
 
 
-class BondDetailOut(BondDetailCreate):
+class BondDetailOut(BaseModel):
     position_id: int
+    issuer: Optional[str] = None
+    coupon_rate: Optional[float] = None
+    coupon_frequency: Optional[str] = None
+    credit_rating: Optional[str] = None
+    yield_to_maturity: Optional[float] = None
+    duration: Optional[float] = None
+    convexity: Optional[float] = None
+    contract_size: Optional[float] = None
+    futures_ticker: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -154,8 +195,12 @@ class MarketDataSnapshotCreate(BaseModel):
     field_value: Decimal
 
 
-class MarketDataSnapshotOut(MarketDataSnapshotCreate):
+class MarketDataSnapshotOut(BaseModel):
     snapshot_id: int
+    valuation_date: date
+    data_source: str
+    field_name: str
+    field_value: float
     timestamp: datetime
 
     model_config = {"from_attributes": True}
@@ -170,8 +215,13 @@ class DealerQuoteCreate(BaseModel):
     quote_type: Optional[str] = None
 
 
-class DealerQuoteOut(DealerQuoteCreate):
+class DealerQuoteOut(BaseModel):
     quote_id: int
+    position_id: int
+    dealer_name: str
+    quote_value: float
+    quote_date: date
+    quote_type: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -179,14 +229,14 @@ class DealerQuoteOut(DealerQuoteCreate):
 # ── Market data query helpers ────────────────────────────────────
 class SpotRateOut(BaseModel):
     currency_pair: str
-    value: Decimal
+    value: float
     source: str
     timestamp: datetime
 
 
 class VolSurfacePointOut(BaseModel):
     delta: str
-    volatility: Decimal
+    volatility: float
 
 
 class VolSurfaceOut(BaseModel):
@@ -217,8 +267,8 @@ class DataQualitySummary(BaseModel):
 # ── Exception schemas ────────────────────────────────────────────
 class ExceptionBase(BaseModel):
     position_id: int
-    difference: Decimal
-    difference_pct: Decimal
+    difference: float
+    difference_pct: float
     severity: str = Field(..., pattern="^(AMBER|RED)$")
 
 
@@ -280,10 +330,10 @@ class ValuationComparisonCreate(BaseModel):
 class ValuationComparisonOut(BaseModel):
     comparison_id: int
     position_id: int
-    desk_mark: Decimal
-    vc_fair_value: Decimal
-    difference: Decimal
-    difference_pct: Decimal
+    desk_mark: float
+    vc_fair_value: float
+    difference: float
+    difference_pct: float
     status: str
     comparison_date: date
     created_at: datetime
@@ -302,7 +352,7 @@ class CommitteeAgendaItemOut(BaseModel):
     agenda_id: int
     exception_id: int
     position_id: int
-    difference: Decimal
+    difference: float
     status: str
     meeting_date: date
     resolution: Optional[str] = None

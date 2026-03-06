@@ -502,7 +502,7 @@ export function AnalystWorkbench() {
           <p className="text-sm text-enterprise-500 font-medium">Avg Days Open</p>
           <p className="text-2xl font-bold mt-1 text-enterprise-800">
             {exceptions.length > 0
-              ? (exceptions.reduce((sum, e) => sum + e.days_open, 0) / exceptions.length).toFixed(1)
+              ? (exceptions.reduce((sum, e) => sum + Number(e.days_open), 0) / exceptions.length).toFixed(1)
               : '0'}
           </p>
         </div>

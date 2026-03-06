@@ -437,7 +437,7 @@ export function ExceptionDashboard() {
         />
         <KPICard
           title="Avg Days to Resolve"
-          value={summary.avg_days_to_resolve.toFixed(1)}
+          value={Number(summary.avg_days_to_resolve).toFixed(1)}
           icon={<Clock size={20} className="text-primary-600" />}
         />
       </div>

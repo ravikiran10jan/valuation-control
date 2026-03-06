@@ -171,6 +171,7 @@ services:
       - AGENT4_BASE_URL=http://agent4-dispute-workflow:8004
       - AGENT5_BASE_URL=http://agent5-reserve-calculations:8005
       - AGENT6_BASE_URL=http://agent6-regulatory-reporting:8006
+      - AGENT8_BASE_URL=http://agent8-validation:8008
       - APP_ENV=production
     depends_on:
       - agent1-data-layer
@@ -179,13 +180,13 @@ services:
       - vc-network
     restart: unless-stopped
 
-  # ── Agent 7: Dashboard Frontend (port 5173) ────────────────────
+  # ── Agent 7: Dashboard Frontend (port 3000) ────────────────────
   agent7-dashboard-frontend:
     build:
       context: ./agent7-dashboard
       dockerfile: Dockerfile.frontend
     ports:
-      - "5173:80"
+      - "3000:80"
     depends_on:
       - agent7-dashboard-backend
     networks:

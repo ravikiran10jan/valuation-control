@@ -26,6 +26,65 @@ from app.services.upstream import (
 log = structlog.get_logger()
 
 
+# Step name mapping from Agent3 enum to readable names
+STEP_NAME_MAP = {
+    "GATHER_MARKET_DATA": "Gather Market Data",
+    "RUN_VALUATION_MODEL": "Run Valuation Model",
+    "COMPARE_DESK_VS_VC": "Compare Desk vs VC",
+    "FLAG_EXCEPTIONS": "Flag Exceptions",
+    "INVESTIGATE_DISPUTE": "Investigate & Dispute",
+    "ESCALATE_TO_COMMITTEE": "Escalate to Committee",
+    "RESOLVE_AND_ADJUST": "Resolve & Adjust",
+    "REPORT": "Report Generation",
+}
+
+
+def _transform_ipv_run(run: dict) -> dict:
+    """Transform an IPV run from Agent3 format to frontend format."""
+    steps = run.get("steps") or []
+    completed_steps = sum(1 for s in steps if s.get("status") == "COMPLETED")
+    total_steps = len(steps) if steps else 8
+
+    # Transform step_results
+    step_results = []
+    for step in steps:
+        step_name = step.get("step_name", "")
+        readable_name = STEP_NAME_MAP.get(step_name, step_name)
+        step_results.append({
+            "step_number": step.get("step_number"),
+            "step_name": readable_name,
+            "status": step.get("status", "PENDING"),
+            "started_at": step.get("started_at"),
+            "completed_at": step.get("completed_at"),
+            "results_count": step.get("positions_processed", 0),
+            "errors_count": len(step.get("errors") or []),
+        })
+
+    # Build summary from run data
+    summary = {
+        "total_notional_usd": 0,
+        "total_book_value_usd": 0,
+        "green_count": run.get("green_count", 0),
+        "amber_count": run.get("amber_count", 0),
+        "red_count": run.get("red_count", 0),
+        "total_fva": 0,
+        "total_ava": 0,
+        "total_model_reserve": 0,
+        "total_day1_deferred": 0,
+    }
+
+    return {
+        "run_id": run.get("run_id", ""),
+        "run_date": run.get("valuation_date", ""),
+        "status": run.get("status", "COMPLETED"),
+        "total_positions": run.get("total_positions", 0),
+        "completed_steps": completed_steps,
+        "total_steps": total_steps,
+        "step_results": step_results,
+        "summary": summary,
+    }
+
+
 def _synthetic_ipv_summary() -> dict:
     """Return realistic synthetic IPV data when all upstream agents are down."""
     now = datetime.utcnow()
@@ -121,12 +180,24 @@ async def get_ipv_summary() -> dict:
     positions = results[0] if not isinstance(results[0], Exception) else []
     exc_summary = results[1] if not isinstance(results[1], Exception) else {}
     reserves = results[2] if not isinstance(results[2], Exception) else {}
-    ipv_runs = results[3] if not isinstance(results[3], Exception) else []
+    ipv_runs_list = results[3] if not isinstance(results[3], Exception) else []
 
     # If all upstream data is empty, return synthetic fallback
-    if not positions and not reserves and not ipv_runs:
+    if not positions and not reserves and not ipv_runs_list:
         log.info("all_upstream_unavailable_ipv_fallback")
         return _synthetic_ipv_summary()
+
+    # Fetch detailed data for each run (to get step data)
+    ipv_runs = []
+    if ipv_runs_list:
+        detail_tasks = [
+            agent3_get(f"/ipv/runs/{run.get('run_id')}")
+            for run in ipv_runs_list[:5]  # Limit to 5 most recent runs
+        ]
+        detail_results = await asyncio.gather(*detail_tasks, return_exceptions=True)
+        for detail in detail_results:
+            if not isinstance(detail, Exception) and detail:
+                ipv_runs.append(detail)
 
     # Count RAG statuses from positions
     green_count = sum(1 for p in positions if p.get("exception_status") in (None, "GREEN"))
@@ -172,7 +243,7 @@ async def get_ipv_summary() -> dict:
         "total_model_reserve": total_model_reserve,
         "total_day1_deferred": total_day1_deferred,
         "ava_breakdown": ava_breakdown,
-        "ipv_runs": ipv_runs if isinstance(ipv_runs, list) else [],
+        "ipv_runs": [_transform_ipv_run(r) for r in ipv_runs] if isinstance(ipv_runs, list) else [],
         "exception_summary": exc_summary if exc_summary else {
             "total_exceptions": 164,
             "red_count": 12,

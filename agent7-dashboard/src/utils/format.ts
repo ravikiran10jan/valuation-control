@@ -20,8 +20,10 @@ export function formatPercent(value: number, decimals = 1): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(decimals)}%`;
 }
 
-export function formatDate(date: string | Date): string {
+export function formatDate(date: string | Date | undefined | null): string {
+  if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '-';
   return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -29,8 +31,10 @@ export function formatDate(date: string | Date): string {
   });
 }
 
-export function formatDateTime(date: string | Date): string {
+export function formatDateTime(date: string | Date | undefined | null): string {
+  if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '-';
   return d.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -40,8 +44,10 @@ export function formatDateTime(date: string | Date): string {
   });
 }
 
-export function formatRelativeTime(date: string | Date): string {
+export function formatRelativeTime(date: string | Date | undefined | null): string {
+  if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '-';
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);

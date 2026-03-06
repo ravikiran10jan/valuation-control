@@ -90,7 +90,7 @@ export function CapitalAdequacyView() {
 
   // AVA impact data
   const avaImpactPct = capital.total_rwa > 0
-    ? (capital.ava_deduction / capital.cet1_capital * 100).toFixed(2)
+    ? (Number(capital.ava_deduction) / Number(capital.cet1_capital) * 100).toFixed(2)
     : '0';
 
   return (
@@ -226,7 +226,7 @@ export function CapitalAdequacyView() {
               <p className="text-sm text-enterprise-500">CET1 Pre-AVA</p>
               <p className="text-2xl font-bold mt-1 text-enterprise-800">
                 {capital.total_rwa > 0
-                  ? ((capital.cet1_capital + capital.ava_deduction) / capital.total_rwa * 100).toFixed(2)
+                  ? ((Number(capital.cet1_capital) + Number(capital.ava_deduction)) / Number(capital.total_rwa) * 100).toFixed(2)
                   : '0.00'}%
               </p>
               <p className="text-xs text-enterprise-400 mt-1">
@@ -333,7 +333,7 @@ export function CapitalAdequacyView() {
           </div>
           <div className="mt-4 space-y-2 pt-4 border-t border-enterprise-200">
             {rwaComponents.map((comp) => {
-              const pct = capital.total_rwa > 0 ? (comp.value / capital.total_rwa * 100).toFixed(1) : '0';
+              const pct = capital.total_rwa > 0 ? (Number(comp.value) / Number(capital.total_rwa) * 100).toFixed(1) : '0';
               return (
                 <div key={comp.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">

@@ -594,7 +594,7 @@ export function IPVRunDashboard() {
                         <span className="text-enterprise-700">{item.name}</span>
                       </div>
                       <span className="font-mono text-enterprise-600 text-xs">
-                        {formatCurrency(item.value, true)} ({pct.toFixed(0)}%)
+                        {formatCurrency(item.value, true)} ({Number(pct).toFixed(0)}%)
                       </span>
                     </div>
                     <div className="h-1.5 bg-enterprise-100 rounded-full overflow-hidden">
